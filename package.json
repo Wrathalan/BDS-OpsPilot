@@ -16,14 +16,16 @@
     "db:prepare": "node prisma/prepare-database.mjs",
     "db:sync": "npm run db:prepare && prisma db push --skip-generate && npm run db:bootstrap",
     "db:bootstrap": "node prisma/bootstrap.mjs",
+    "agent:build:windows": "node scripts/build-agent-windows.mjs",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f opspilot",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:windows-agent": "npm run agent:build:windows && playwright test",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern playwright-report --ignore-pattern test-results",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "overrides": {

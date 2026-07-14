@@ -5,6 +5,11 @@ node_modules
 coverage
 playwright-report
 test-results
+dist
+agent/windows/bin
+agent/windows/obj
+public/downloads/*.exe
+public/downloads/*.sha256
 .env
 .env.*
 !.env.example

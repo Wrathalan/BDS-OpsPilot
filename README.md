@@ -40,7 +40,20 @@ npm run local
 1. Sign in and create an organization and location.
 2. Select **Devices → Enroll endpoint** and issue a short-lived, scoped token.
 3. Copy the token immediately; only its server-side hash is retained.
-4. On an authorized test machine, run:
+4. Download **Windows self-enrollment agent** from the token screen and copy it to the authorized endpoint.
+5. Double-click `opspilot-agent-windows-x64.exe`, enter the OpsPilot URL, and paste the one-time token when prompted.
+
+The Windows x64 executable is self-contained: the endpoint does not need Node.js or .NET installed. It collects actual host identity, OS, CPU, memory, disk, IP, user, uptime, reboot state, and minimal software inventory; enrolls the device; performs an authenticated check-in; and DPAPI-protects its agent secret for the enrolling Windows user. It can then remain open for continuous foreground monitoring.
+
+For unattended test enrollment from a trusted terminal:
+
+```powershell
+.\opspilot-agent-windows-x64.exe enroll --server http://127.0.0.1:3000 --token <one-time-token>
+.\opspilot-agent-windows-x64.exe once
+.\opspilot-agent-windows-x64.exe run
+```
+
+The cross-platform Node.js agent remains available for repository and non-Windows testing:
 
 ```powershell
 node agent/opspilot-agent.mjs enroll --server http://127.0.0.1:3000 --token <one-time-token> --data-dir .agent-data
@@ -48,7 +61,7 @@ node agent/opspilot-agent.mjs once --data-dir .agent-data
 node agent/opspilot-agent.mjs run --data-dir .agent-data
 ```
 
-The agent collects actual host identity, OS, CPU, memory, disk, IP, user, uptime, and a minimal inventory using Node.js APIs. `once` performs one live cycle and exits; `run` stays in the foreground and polls for two allowlisted tasks: status refresh and inventory refresh. It never executes a supplied shell command or arbitrary payload.
+Both agents use the same authenticated protocol. `once` performs one live cycle and exits; `run` stays in the foreground and polls for two allowlisted tasks: status refresh and inventory refresh. Neither agent executes a supplied shell command or arbitrary payload.
 
 Platform program and state locations are documented in [agent/INSTALL_PATHS.md](agent/INSTALL_PATHS.md). The repository-local `.agent-data` path is ignored by Git.
 
@@ -68,7 +81,8 @@ Important surfaces:
 - `app/api/agent/check-in`: accepts authenticated telemetry and evaluates live thresholds.
 - `app/api/agent/tasks`: exposes queued allowlisted tasks to the enrolled device only.
 - `app/api/actions/route.ts`: validates and authorizes operator actions.
-- `agent/opspilot-agent.mjs`: foreground cross-platform live-test agent.
+- `agent/windows`: native self-contained Windows x64 endpoint agent source.
+- `agent/opspilot-agent.mjs`: foreground cross-platform repository agent.
 - `prisma/bootstrap.mjs`: idempotent tenant and root-account bootstrap.
 
 ## Security boundaries
@@ -100,11 +114,14 @@ Use HTTPS and a reachable `APP_URL` before testing across machines. Restrict the
 | `npm run check` | Typecheck, lint, unit tests, and production build |
 | `npm run docker:up` | Build and start the persistent Docker stack |
 | `npm run docker:down` | Stop the Docker stack without deleting data |
+| `npm run agent:build:windows` | Build the self-contained Windows x64 endpoint executable |
+| `npm run test:e2e:windows-agent` | Build and exercise the native executable through enrollment and task completion |
 
 ## Current live-test limits
 
 - SQLite and in-process rate limiting target one control-plane instance.
 - The agent must remain open in a foreground terminal; service installation is intentionally absent.
+- The Windows executable is an unsigned live-test build, so Windows SmartScreen may require an explicit allow action until a trusted code-signing certificate is configured.
 - Software inventory is intentionally minimal and uses only cross-platform Node.js host APIs.
 - Patch discovery and installation, remote support, command execution, and endpoint persistence are not implemented.
 - Notifications are in-app only. Production use needs managed persistence, shared rate limiting, TLS, MFA/SSO, credential rotation, backups, replay protection, signed agent releases, observability, and independent security testing.

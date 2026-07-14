@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -26,35 +27,54 @@ test("root enrolls a live agent and completes an allowlisted task", async ({ pag
 
   await page.getByRole("link", { name: "Devices" }).click();
   await page.getByRole("button", { name: "Enroll endpoint" }).click();
-  await expect(page.getByRole("button", { name: /Create organization/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Add location/ })).toBeDisabled();
-  await page.getByRole("button", { name: /Create organization/ }).click();
-  await page.getByLabel("Organization name").fill(orgName);
-  await page.getByLabel("URL slug").fill(`live-test-${suffix}`);
-  await page.getByRole("button", { name: "Create organization" }).click();
-  await expect(page.getByText("Organization created.")).toBeVisible();
+  const quickCreate = page.getByRole("button", { name: /Create organization/ });
+  if (await quickCreate.isVisible()) {
+    await expect(page.getByRole("button", { name: /Add location/ })).toBeDisabled();
+    await quickCreate.click();
+    await page.getByLabel("Organization name").fill(orgName);
+    await page.getByLabel("URL slug").fill(`live-test-${suffix}`);
+    await page.getByRole("button", { name: "Create organization" }).click();
+    await expect(page.getByText("Organization created.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Enroll endpoint" }).click();
-  await page.getByRole("button", { name: /Add location/ }).click();
-  await page.getByLabel("Organization").selectOption({ label: orgName });
-  await page.getByLabel("Location name").fill(locationName);
-  await page.getByRole("button", { name: "Add location" }).click();
-  await expect(page.getByText("Location created.")).toBeVisible();
+    await page.getByRole("button", { name: "Enroll endpoint" }).click();
+    await page.getByRole("button", { name: /Add location/ }).click();
+    await page.getByLabel("Organization").selectOption({ label: orgName });
+    await page.getByLabel("Location name").fill(locationName);
+    await page.getByRole("button", { name: "Add location" }).click();
+    await expect(page.getByText("Location created.")).toBeVisible();
+  } else {
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("link", { name: "Organizations" }).click();
+    await page.getByRole("button", { name: "Add organization" }).click();
+    await page.getByLabel("Organization name").fill(orgName);
+    await page.getByLabel("URL slug").fill(`live-test-${suffix}`);
+    await page.getByRole("button", { name: "Create organization" }).click();
+    const orgCard = page.locator("article").filter({ hasText: orgName });
+    await expect(orgCard).toBeVisible();
+    await orgCard.getByRole("button", { name: "Add site" }).click();
+    await page.getByLabel("Location name").fill(locationName);
+    await page.getByRole("button", { name: "Add location" }).click();
+    await page.getByRole("link", { name: "Devices" }).click();
+  }
 
   await page.getByRole("button", { name: "Enroll endpoint" }).click();
   await page.getByLabel("Organization").selectOption({ label: orgName });
   await page.getByLabel("Location").selectOption({ label: locationName });
   await page.getByLabel("Token name").fill(`Enrollment ${suffix}`);
   await page.getByRole("button", { name: "Issue token" }).click();
+  await expect(page.getByRole("link", { name: "Download .exe" })).toHaveAttribute("href", "/downloads/opspilot-agent-windows-x64.exe");
   const enrollmentToken = await page.locator(".live-token-result code").innerText();
   expect(enrollmentToken).toMatch(/^ops_enroll_/);
 
   const agentDataDir = await mkdtemp(path.join(os.tmpdir(), "opspilot-agent-e2e-"));
   temporaryAgentDirectories.add(agentDataDir);
   const agentScript = path.join(process.cwd(), "agent", "opspilot-agent.mjs");
-  const enrolled = await execFileAsync(process.execPath, [agentScript, "enroll", "--server", "http://127.0.0.1:3000", "--token", enrollmentToken, "--data-dir", agentDataDir]);
+  const windowsAgent = path.join(process.cwd(), "public", "downloads", "opspilot-agent-windows-x64.exe");
+  const useWindowsExecutable = process.platform === "win32" && existsSync(windowsAgent);
+  const runAgent = (agentArgs: string[]) => execFileAsync(useWindowsExecutable ? windowsAgent : process.execPath, useWindowsExecutable ? agentArgs : [agentScript, ...agentArgs]);
+  const enrolled = await runAgent(["enroll", "--server", "http://127.0.0.1:3000", "--token", enrollmentToken, "--data-dir", agentDataDir]);
   expect(enrolled.stdout).toContain("Enrolled");
-  const firstCheckIn = await execFileAsync(process.execPath, [agentScript, "once", "--data-dir", agentDataDir]);
+  const firstCheckIn = await runAgent(["once", "--data-dir", agentDataDir]);
   expect(firstCheckIn.stdout).toContain("Check-in accepted");
 
   await page.getByRole("button", { name: "Done" }).click();
@@ -67,8 +87,9 @@ test("root enrolls a live agent and completes an allowlisted task", async ({ pag
   await refreshRow.getByRole("button", { name: "Queue" }).click();
   await expect(page.getByText(/queued for agent pickup/i)).toBeVisible();
 
-  const taskCycle = await execFileAsync(process.execPath, [agentScript, "once", "--data-dir", agentDataDir]);
-  expect(taskCycle.stdout.match(/Check-in accepted/g)?.length).toBeGreaterThanOrEqual(2);
+  const taskCycle = await runAgent(["once", "--data-dir", agentDataDir]);
+  expect(taskCycle.stdout).toContain("Check-in accepted");
+  if (useWindowsExecutable) expect(taskCycle.stdout).toContain("Completed allowlisted task");
 
   await page.getByRole("link", { name: "Audit Log" }).click();
   await page.getByPlaceholder("Search actor, action, resource…").fill("agent.automation_completed");

@@ -18,6 +18,10 @@
 /prisma/*.db-journal
 /.agent-data/
 **/agent.json
+/public/downloads/*.exe
+/public/downloads/*.sha256
+/agent/windows/bin/
+/agent/windows/obj/
 
 # next.js
 /.next/
