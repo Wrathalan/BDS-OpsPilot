@@ -1,0 +1,513 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  users             User[]
+  roles             Role[]
+  organizations     Organization[]
+  devices           Device[]
+  policies          Policy[]
+  automations       Automation[]
+  patches           Patch[]
+  tickets           Ticket[]
+  alerts            Alert[]
+  notifications     Notification[]
+  auditEvents       AuditEvent[]
+  reportDefinitions ReportDefinition[]
+  deviceGroups      DeviceGroup[]
+}
+
+model User {
+  id                      String                  @id @default(cuid())
+  tenantId                String
+  roleId                  String
+  email                   String
+  name                    String
+  passwordHash            String
+  active                  Boolean                 @default(true)
+  allOrganizations        Boolean                 @default(false)
+  lastLoginAt             DateTime?
+  createdAt               DateTime                @default(now())
+  tenant                  Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role                    Role                    @relation(fields: [roleId], references: [id])
+  scopes                  UserOrganizationScope[]
+  sessions                Session[]
+  requestedAutomationRuns AutomationRun[]         @relation("RequestedAutomationRuns")
+  assignedAlerts          Alert[]                 @relation("AlertAssignee")
+  assignedTickets         Ticket[]                @relation("TicketAssignee")
+  ticketComments          TicketComment[]
+  notifications           Notification[]
+  auditEvents             AuditEvent[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, active])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  tenantId    String
+  name        String
+  description String
+  systemKey   String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users       User[]
+  permissions RolePermission[]
+
+  @@unique([tenantId, systemKey])
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserOrganizationScope {
+  userId         String
+  organizationId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, organizationId])
+}
+
+model Organization {
+  id                String                  @id @default(cuid())
+  tenantId          String
+  name              String
+  slug              String
+  industry          String?
+  status            String                  @default("active")
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locations         Location[]
+  devices           Device[]
+  scopes            UserOrganizationScope[]
+  policyAssignments PolicyAssignment[]
+  alerts            Alert[]
+  tickets           Ticket[]
+  auditEvents       AuditEvent[]
+
+  @@unique([tenantId, slug])
+}
+
+model Location {
+  id                String             @id @default(cuid())
+  organizationId    String
+  name              String
+  timezone          String             @default("America/Chicago")
+  address           String?
+  createdAt         DateTime           @default(now())
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  devices           Device[]
+  policyAssignments PolicyAssignment[]
+
+  @@unique([organizationId, name])
+}
+
+model Device {
+  id                String                  @id @default(cuid())
+  tenantId          String
+  organizationId    String
+  locationId        String
+  hostname          String
+  displayName       String
+  role              String
+  status            String                  @default("online")
+  operatingSystem   String
+  osVersion         String
+  manufacturer      String
+  model             String
+  serialNumber      String
+  cpu               String
+  memoryGb          Int
+  diskCapacityGb    Int
+  diskUsedPercent   Float
+  ipAddress         String
+  lastLoggedInUser  String
+  agentVersion      String
+  lastCheckIn       DateTime
+  uptimeMinutes     Int
+  pendingReboot     Boolean                 @default(false)
+  patchCompliance   Float                   @default(100)
+  activeAlertCount  Int                     @default(0)
+  customFields      String                  @default("{}")
+  notes             String                  @default("")
+  simulatorState    String                  @default("running")
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location          Location                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  agentSessions     AgentSession[]
+  metrics           DeviceMetric[]
+  hardwareInventory HardwareInventory?
+  softwareInventory SoftwareInventoryItem[]
+  policyAssignments PolicyAssignment[]
+  alerts            Alert[]
+  automationRuns    AutomationRun[]
+  patchStates       DevicePatchState[]
+  tickets           Ticket[]
+
+  @@unique([tenantId, hostname])
+  @@index([tenantId, organizationId, status])
+  @@index([locationId])
+}
+
+model DeviceGroup {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  query     String
+  createdBy String
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+}
+
+model AgentSession {
+  id            String    @id @default(cuid())
+  deviceId      String
+  type          String    @default("telemetry")
+  status        String    @default("active")
+  requestedBy   String?
+  approvedBy    String?
+  simulatorOnly Boolean   @default(true)
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  device        Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, startedAt])
+}
+
+model DeviceMetric {
+  id        String   @id @default(cuid())
+  deviceId  String
+  timestamp DateTime @default(now())
+  cpu       Float
+  memory    Float
+  disk      Float
+  latencyMs Int
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, timestamp])
+}
+
+model HardwareInventory {
+  id          String   @id @default(cuid())
+  deviceId    String   @unique
+  biosVersion String
+  tpmVersion  String?
+  cpuCores    Int
+  macAddress  String
+  collectedAt DateTime @default(now())
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+}
+
+model SoftwareInventoryItem {
+  id          String    @id @default(cuid())
+  deviceId    String
+  name        String
+  version     String
+  vendor      String
+  installedAt DateTime?
+  prohibited  Boolean   @default(false)
+  required    Boolean   @default(false)
+  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, name])
+  @@index([deviceId, prohibited, required])
+}
+
+model Policy {
+  id          String             @id @default(cuid())
+  tenantId    String
+  parentId    String?
+  name        String
+  description String
+  settings    String
+  enabled     Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent      Policy?            @relation("PolicyInheritance", fields: [parentId], references: [id])
+  children    Policy[]           @relation("PolicyInheritance")
+  assignments PolicyAssignment[]
+  conditions  MonitorCondition[]
+
+  @@unique([tenantId, name])
+}
+
+model PolicyAssignment {
+  id             String        @id @default(cuid())
+  policyId       String
+  organizationId String?
+  locationId     String?
+  deviceId       String?
+  createdAt      DateTime      @default(now())
+  policy         Policy        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location       Location?     @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  device         Device?       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([locationId])
+  @@index([deviceId])
+}
+
+model MonitorCondition {
+  id              String  @id @default(cuid())
+  policyId        String
+  type            String
+  comparator      String
+  threshold       Float?
+  durationMinutes Int     @default(5)
+  severity        String  @default("warning")
+  automationKey   String?
+  createTicket    Boolean @default(false)
+  autoResolve     Boolean @default(true)
+  policy          Policy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  alerts          Alert[]
+}
+
+model Alert {
+  id              String            @id @default(cuid())
+  tenantId        String
+  organizationId  String
+  deviceId        String
+  conditionId     String?
+  assigneeId      String?
+  fingerprint     String
+  title           String
+  description     String
+  severity        String
+  priority        String
+  status          String            @default("open")
+  notes           String            @default("")
+  suppressedUntil DateTime?
+  triggeredAt     DateTime          @default(now())
+  acknowledgedAt  DateTime?
+  resolvedAt      DateTime?
+  history         String            @default("[]")
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  device          Device            @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  condition       MonitorCondition? @relation(fields: [conditionId], references: [id])
+  ticket          Ticket?
+  assignee        User?             @relation("AlertAssignee", fields: [assigneeId], references: [id])
+  automationRuns  AutomationRun[]
+
+  @@index([tenantId, fingerprint, status])
+  @@index([organizationId, status, severity])
+}
+
+model Automation {
+  id          String          @id @default(cuid())
+  tenantId    String
+  key         String
+  name        String
+  description String
+  riskLevel   String          @default("low")
+  approved    Boolean         @default(true)
+  inputSchema String          @default("{}")
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  runs        AutomationRun[]
+
+  @@unique([tenantId, key])
+}
+
+model AutomationRun {
+  id            String     @id @default(cuid())
+  automationId  String
+  deviceId      String
+  requestedById String
+  alertId       String?
+  ticketId      String?
+  triggerSource String
+  status        String     @default("queued")
+  input         String     @default("{}")
+  output        String     @default("")
+  failureReason String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  automation    Automation @relation(fields: [automationId], references: [id])
+  device        Device     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  requestedBy   User       @relation("RequestedAutomationRuns", fields: [requestedById], references: [id])
+  alert         Alert?     @relation(fields: [alertId], references: [id])
+  ticket        Ticket?    @relation(fields: [ticketId], references: [id])
+
+  @@index([deviceId, createdAt])
+}
+
+model Patch {
+  id             String             @id @default(cuid())
+  tenantId       String
+  vendor         String
+  product        String
+  identifier     String
+  title          String
+  releaseDate    DateTime
+  severity       String
+  cveReferences  String             @default("[]")
+  approvalState  String             @default("pending")
+  rebootRequired Boolean            @default(false)
+  deploymentRing String             @default("production")
+  scheduledFor   DateTime?
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceStates   DevicePatchState[]
+
+  @@unique([tenantId, identifier])
+}
+
+model DevicePatchState {
+  id            String    @id @default(cuid())
+  deviceId      String
+  patchId       String
+  state         String    @default("missing")
+  failureReason String?
+  installedAt   DateTime?
+  lastAttemptAt DateTime?
+  device        Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  patch         Patch     @relation(fields: [patchId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, patchId])
+  @@index([patchId, state])
+}
+
+model Ticket {
+  id             String          @id @default(cuid())
+  tenantId       String
+  organizationId String
+  deviceId       String?
+  alertId        String?         @unique
+  requester      String
+  assigneeId     String?
+  number         Int
+  title          String
+  description    String
+  status         String          @default("new")
+  priority       String          @default("normal")
+  category       String          @default("Monitoring")
+  slaTarget      DateTime
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  device         Device?         @relation(fields: [deviceId], references: [id])
+  alert          Alert?          @relation(fields: [alertId], references: [id])
+  assignee       User?           @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  comments       TicketComment[]
+  automationRuns AutomationRun[]
+
+  @@unique([tenantId, number])
+  @@index([organizationId, status])
+}
+
+model TicketComment {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model AuditEvent {
+  id             String        @id @default(cuid())
+  tenantId       String
+  organizationId String?
+  actorId        String?
+  action         String
+  resourceType   String
+  resourceId     String
+  success        Boolean       @default(true)
+  requestContext String        @default("local")
+  beforeSummary  String?
+  afterSummary   String?
+  createdAt      DateTime      @default(now())
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  actor          User?         @relation(fields: [actorId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String?
+  type      String
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, readAt, createdAt])
+}
+
+model ReportDefinition {
+  id        String      @id @default(cuid())
+  tenantId  String
+  name      String
+  type      String
+  filters   String      @default("{}")
+  createdAt DateTime    @default(now())
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  runs      ReportRun[]
+
+  @@unique([tenantId, name])
+}
+
+model ReportRun {
+  id           String           @id @default(cuid())
+  definitionId String
+  status       String           @default("completed")
+  rowCount     Int              @default(0)
+  parameters   String           @default("{}")
+  outputPath   String?
+  startedAt    DateTime         @default(now())
+  completedAt  DateTime?
+  definition   ReportDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+}
