@@ -38,14 +38,13 @@ npm run local
 ## Enroll an endpoint
 
 1. Sign in and create an organization and location.
-2. Select **Devices → Enroll endpoint** and issue a short-lived, scoped token.
-3. Copy the token immediately; only its server-side hash is retained.
-4. Download **Windows self-enrollment agent** from the token screen and copy it to the authorized endpoint.
-5. Double-click `opspilot-agent-windows-x64.exe`, enter the OpsPilot URL, and paste the one-time token when prompted.
+2. Select **Devices → Enroll endpoint**, choose the endpoint scope, and create an agent package.
+3. Download the personalized Windows executable and copy it to the authorized endpoint.
+4. Launch `opspilot-agent-windows-x64.exe`. It connects to the configured `APP_URL`, enrolls itself, saves its protected credential, checks in, and starts foreground monitoring without prompts or command-line arguments.
 
-The Windows x64 executable is self-contained: the endpoint does not need Node.js or .NET installed. It collects actual host identity, OS, CPU, memory, disk, IP, user, uptime, reboot state, and minimal software inventory; enrolls the device; performs an authenticated check-in; and DPAPI-protects its agent secret for the enrolling Windows user. It can then remain open for continuous foreground monitoring.
+The Windows x64 executable is self-contained: the endpoint does not need Node.js or .NET installed. OpsPilot embeds the control-plane address and scoped enrollment token into each personalized download without placing the token in the download URL. The agent collects actual host identity, OS, CPU, memory, disk, IP, user, uptime, reboot state, and minimal software inventory; enrolls the device; performs an authenticated check-in; and DPAPI-protects its agent secret for the enrolling Windows user.
 
-For unattended test enrollment from a trusted terminal:
+The universal build still supports explicit CLI enrollment for development and recovery:
 
 ```powershell
 .\opspilot-agent-windows-x64.exe enroll --server http://127.0.0.1:3000 --token <one-time-token>
@@ -78,6 +77,7 @@ Platform program and state locations are documented in [agent/INSTALL_PATHS.md](
 Important surfaces:
 
 - `app/api/agent/enroll`: consumes a scoped enrollment token and returns an agent secret once.
+- `app/api/agent/windows/download`: creates an authenticated, personalized zero-touch Windows executable.
 - `app/api/agent/check-in`: accepts authenticated telemetry and evaluates live thresholds.
 - `app/api/agent/tasks`: exposes queued allowlisted tasks to the enrolled device only.
 - `app/api/actions/route.ts`: validates and authorizes operator actions.
@@ -88,7 +88,7 @@ Important surfaces:
 ## Security boundaries
 
 - User passwords use bcrypt with cost 12.
-- Session tokens and agent secrets are stored as hashes; plaintext enrollment and agent credentials are returned only once.
+- Session tokens and agent secrets are stored as hashes; the scoped enrollment token is embedded into the personalized executable and defaults to one endpoint install.
 - Session cookies are HTTP-only and SameSite Strict, and become Secure in production.
 - Mutations validate origin, payload, tenant, organization scope, and permission.
 - Agent tasks are hard-coded to `refresh-agent` and `inventory-refresh`; there is no remote shell, script runner, file browser, service control, process control, credential collection, or persistence installer.
@@ -96,7 +96,7 @@ Important surfaces:
 - Normal application routes do not expose audit edit or delete operations.
 - `.env`, agent state, and credentials are ignored by Git.
 
-Use HTTPS and a reachable `APP_URL` before testing across machines. Restrict the endpoint state-directory ACL, rotate any disclosed credential, and use test systems you are authorized to monitor.
+Use HTTPS and set `APP_URL` to an address reachable by endpoints before testing across machines. Treat an unused personalized executable as an enrollment credential, restrict the endpoint state-directory ACL, rotate any disclosed credential, and use test systems you are authorized to monitor.
 
 ## Commands
 
@@ -122,6 +122,6 @@ Use HTTPS and a reachable `APP_URL` before testing across machines. Restrict the
 - SQLite and in-process rate limiting target one control-plane instance.
 - The agent must remain open in a foreground terminal; service installation is intentionally absent.
 - The Windows executable is an unsigned live-test build, so Windows SmartScreen may require an explicit allow action until a trusted code-signing certificate is configured.
-- Software inventory is intentionally minimal and uses only cross-platform Node.js host APIs.
+- Software inventory is intentionally minimal; the Windows executable reports its own runtime plus native host telemetry.
 - Patch discovery and installation, remote support, command execution, and endpoint persistence are not implemented.
 - Notifications are in-app only. Production use needs managed persistence, shared rate limiting, TLS, MFA/SSO, credential rotation, backups, replay protection, signed agent releases, observability, and independent security testing.

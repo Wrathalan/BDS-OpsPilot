@@ -15,7 +15,7 @@ return await AgentProgram.RunAsync(args);
 
 internal static class AgentProgram
 {
-    private const string AgentVersion = "0.3.0";
+    private const string AgentVersion = "0.4.0";
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -25,11 +25,11 @@ internal static class AgentProgram
             var options = CliOptions.Parse(args);
             return options.Command switch
             {
-                "enroll" => await EnrollCommandAsync(options, interactive: false),
+                "enroll" => await EnrollCommandAsync(options),
                 "once" => await OnceCommandAsync(options),
                 "run" => await RunCommandAsync(options),
                 "help" or "--help" or "-h" => PrintHelp(),
-                "interactive" => await InteractiveAsync(options),
+                "interactive" => await AutomaticAsync(options),
                 _ => throw new InvalidOperationException($"Unknown command '{options.Command}'. Run with --help for usage."),
             };
         }
@@ -43,11 +43,6 @@ internal static class AgentProgram
             Console.ForegroundColor = ConsoleColor.Red;
             Console.Error.WriteLine($"Error: {error.Message}");
             Console.ResetColor();
-            if (args.Length == 0)
-            {
-                Console.WriteLine("Press Enter to close.");
-                Console.ReadLine();
-            }
             return 1;
         }
     }
@@ -57,7 +52,7 @@ internal static class AgentProgram
         Console.WriteLine($"""
             OpsPilot Endpoint Agent {AgentVersion}
 
-            Double-click the executable for guided self-enrollment.
+            A personalized download self-enrolls and starts monitoring when launched.
 
             Commands:
               enroll --server <url> --token <one-time-token> [--data-dir <path>]
@@ -70,52 +65,28 @@ internal static class AgentProgram
         return 0;
     }
 
-    private static async Task<int> InteractiveAsync(CliOptions options)
+    private static async Task<int> AutomaticAsync(CliOptions options)
     {
         PrintBanner();
-        if (AgentConfigStore.TryLoad(options.Get("data-dir"), out var existing))
+        var dataDirectory = DataDirectory(options);
+        if (EmbeddedEnrollmentPackage.TryLoad(out var package))
         {
-            Console.WriteLine($"Existing enrollment found for device {existing.DeviceId}.");
-            Console.Write("Press Enter to start monitoring, or type R to re-enroll: ");
-            if (!string.Equals(Console.ReadLine()?.Trim(), "r", StringComparison.OrdinalIgnoreCase))
-                return await RunAgentAsync(existing, once: false);
+            Console.WriteLine($"Personalized enrollment package detected for {new Uri(package.Server).Host}.");
+            var result = await EnrollCommandAsync(options, package);
+            if (result != 0 || Environment.GetEnvironmentVariable("OPSPILOT_EXIT_AFTER_ENROLL") == "1") return result;
+            return await RunAgentAsync(AgentConfigStore.Load(dataDirectory), once: false);
         }
 
-        var result = await EnrollCommandAsync(options, interactive: true);
-        if (result != 0) return result;
-
-        Console.Write("Start continuous foreground monitoring now? [Y/n]: ");
-        var answer = Console.ReadLine()?.Trim();
-        if (string.Equals(answer, "n", StringComparison.OrdinalIgnoreCase))
-        {
-            Console.WriteLine("Enrollment is complete. Run this executable again to start monitoring.");
-            Console.WriteLine("Press Enter to close.");
-            Console.ReadLine();
-            return 0;
-        }
-
-        var config = AgentConfigStore.Load(options.Get("data-dir"));
-        return await RunAgentAsync(config, once: false);
+        if (AgentConfigStore.TryLoad(dataDirectory, out var existing)) return await RunAgentAsync(existing, once: false);
+        throw new InvalidOperationException("This executable has no embedded enrollment package. Download a personalized agent from the OpsPilot enrollment screen.");
     }
 
-    private static async Task<int> EnrollCommandAsync(CliOptions options, bool interactive)
+    private static async Task<int> EnrollCommandAsync(CliOptions options, EmbeddedEnrollment? embedded = null)
     {
-        var server = options.Get("server") ?? Environment.GetEnvironmentVariable("OPSPILOT_SERVER");
-        if (string.IsNullOrWhiteSpace(server) && interactive)
-        {
-            Console.Write("OpsPilot server URL [http://127.0.0.1:3000]: ");
-            server = Console.ReadLine()?.Trim();
-        }
-        server = NormalizeServer(string.IsNullOrWhiteSpace(server) ? "http://127.0.0.1:3000" : server);
-
-        var token = options.Get("token") ?? Environment.GetEnvironmentVariable("OPSPILOT_ENROLLMENT_TOKEN");
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            if (!interactive && Console.IsInputRedirected) throw new InvalidOperationException("Provide --token or OPSPILOT_ENROLLMENT_TOKEN.");
-            Console.Write("One-time enrollment token: ");
-            token = ReadSecret();
-        }
-        if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("An enrollment token is required.");
+        embedded ??= EmbeddedEnrollmentPackage.TryLoad(out var packaged) ? packaged : null;
+        var server = NormalizeServer(options.Get("server") ?? Environment.GetEnvironmentVariable("OPSPILOT_SERVER") ?? embedded?.Server ?? throw new InvalidOperationException("No OpsPilot server was provided or embedded."));
+        var token = options.Get("token") ?? Environment.GetEnvironmentVariable("OPSPILOT_ENROLLMENT_TOKEN") ?? embedded?.Token;
+        if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("No enrollment token was provided or embedded.");
 
         if (new Uri(server).Scheme == Uri.UriSchemeHttp && !new Uri(server).IsLoopback)
         {
@@ -129,7 +100,7 @@ internal static class AgentProgram
         using var client = new AgentClient(server, AgentVersion);
         var response = await client.EnrollAsync(token, enrollment);
         var config = AgentConfig.Create(server, response.DeviceId, response.AgentSecret, response.IntervalSeconds);
-        var configPath = AgentConfigStore.Save(config, options.Get("data-dir"));
+        var configPath = AgentConfigStore.Save(config, DataDirectory(options));
         await client.CheckInAsync(config.AgentSecret, await HostInventory.CreateCheckInAsync(AgentVersion));
 
         Console.ForegroundColor = ConsoleColor.Green;
@@ -142,13 +113,13 @@ internal static class AgentProgram
     private static async Task<int> OnceCommandAsync(CliOptions options)
     {
         PrintBanner();
-        return await RunAgentAsync(AgentConfigStore.Load(options.Get("data-dir")), once: true);
+        return await RunAgentAsync(AgentConfigStore.Load(DataDirectory(options)), once: true);
     }
 
     private static async Task<int> RunCommandAsync(CliOptions options)
     {
         PrintBanner();
-        return await RunAgentAsync(AgentConfigStore.Load(options.Get("data-dir")), once: false);
+        return await RunAgentAsync(AgentConfigStore.Load(DataDirectory(options)), once: false);
     }
 
     private static async Task<int> RunAgentAsync(AgentConfig config, bool once)
@@ -191,18 +162,7 @@ internal static class AgentProgram
         return uri.GetLeftPart(UriPartial.Authority);
     }
 
-    private static string ReadSecret()
-    {
-        if (Console.IsInputRedirected) return Console.ReadLine()?.Trim() ?? "";
-        var value = new StringBuilder();
-        while (true)
-        {
-            var key = Console.ReadKey(intercept: true);
-            if (key.Key == ConsoleKey.Enter) { Console.WriteLine(); return value.ToString(); }
-            if (key.Key == ConsoleKey.Backspace && value.Length > 0) { value.Length--; Console.Write("\b \b"); continue; }
-            if (!char.IsControl(key.KeyChar)) { value.Append(key.KeyChar); Console.Write('*'); }
-        }
-    }
+    private static string? DataDirectory(CliOptions options) => options.Get("data-dir") ?? Environment.GetEnvironmentVariable("OPSPILOT_DATA_DIR");
 
     private static void PrintBanner()
     {
@@ -243,7 +203,7 @@ internal sealed class AgentClient(string server, string version) : IDisposable
             try
             {
                 if (!AllowedTasks.Contains(task.Action)) throw new InvalidOperationException("Task is not in the endpoint allowlist.");
-                await CheckInAsync(secret, await HostInventory.CreateCheckInAsync("0.3.0"), cancellation);
+                await CheckInAsync(secret, await HostInventory.CreateCheckInAsync(version), cancellation);
                 Console.WriteLine($"Completed allowlisted task {task.Action} ({task.Id}).");
             }
             catch (Exception error)
@@ -353,6 +313,44 @@ internal static class AgentConfigStore
 
     private static string Protect(string secret) => Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(secret), Entropy, DataProtectionScope.CurrentUser));
     private static string Unprotect(string secret) => Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(secret), Entropy, DataProtectionScope.CurrentUser));
+}
+
+internal static class EmbeddedEnrollmentPackage
+{
+    private static readonly byte[] Marker = Encoding.ASCII.GetBytes("OPSPILOT_ENROLLMENT_V1");
+    private const int MaximumPayloadBytes = 4096;
+
+    public static bool TryLoad(out EmbeddedEnrollment package)
+    {
+        package = default!;
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable)) return false;
+
+        using var stream = new FileStream(executable, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        if (stream.Length < Marker.Length + sizeof(int)) return false;
+
+        var markerStart = stream.Length - Marker.Length;
+        stream.Position = markerStart;
+        var marker = new byte[Marker.Length];
+        stream.ReadExactly(marker);
+        if (!marker.AsSpan().SequenceEqual(Marker)) return false;
+
+        stream.Position = markerStart - sizeof(int);
+        Span<byte> lengthBytes = stackalloc byte[sizeof(int)];
+        stream.ReadExactly(lengthBytes);
+        var payloadLength = BitConverter.ToInt32(lengthBytes);
+        if (payloadLength <= 0 || payloadLength > MaximumPayloadBytes || markerStart - sizeof(int) - payloadLength < 0)
+            throw new InvalidOperationException("The embedded enrollment package is invalid.");
+
+        stream.Position = markerStart - sizeof(int) - payloadLength;
+        var payload = new byte[payloadLength];
+        stream.ReadExactly(payload);
+        package = JsonSerializer.Deserialize<EmbeddedEnrollment>(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true })
+            ?? throw new InvalidOperationException("The embedded enrollment package is empty.");
+        if (!Uri.TryCreate(package.Server, UriKind.Absolute, out var server) || (server.Scheme != Uri.UriSchemeHttp && server.Scheme != Uri.UriSchemeHttps) || package.Token.Length is < 32 or > 180)
+            throw new InvalidOperationException("The embedded enrollment package is invalid.");
+        return true;
+    }
 }
 
 internal static class HostInventory
@@ -512,6 +510,7 @@ internal sealed record AgentConfig(string Server, string DeviceId, string AgentS
 {
     public static AgentConfig Create(string server, string deviceId, string secret, int interval) => new(server, deviceId, secret, Math.Max(15, interval));
 }
+internal sealed record EmbeddedEnrollment(string Server, string Token);
 internal sealed record StoredAgentConfig(string Server, string DeviceId, string ProtectedAgentSecret, int IntervalSeconds, DateTimeOffset EnrolledAt);
 internal sealed record EnrollmentResponse(string DeviceId, string AgentSecret, int IntervalSeconds);
 internal sealed record ApiError(string Error);

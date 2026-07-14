@@ -12,7 +12,7 @@
     <UseAppHost>true</UseAppHost>
     <AssemblyName>opspilot-agent-windows-x64</AssemblyName>
     <RootNamespace>OpsPilot.Agent</RootNamespace>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <AssemblyTitle>OpsPilot Endpoint Agent</AssemblyTitle>
     <Product>OpsPilot Endpoint Agent</Product>
     <Description>Foreground Windows endpoint enrollment and monitoring agent for OpsPilot.</Description>

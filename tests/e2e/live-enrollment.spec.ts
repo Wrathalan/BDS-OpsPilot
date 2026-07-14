@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -60,20 +59,34 @@ test("root enrolls a live agent and completes an allowlisted task", async ({ pag
   await page.getByRole("button", { name: "Enroll endpoint" }).click();
   await page.getByLabel("Organization").selectOption({ label: orgName });
   await page.getByLabel("Location").selectOption({ label: locationName });
-  await page.getByLabel("Token name").fill(`Enrollment ${suffix}`);
-  await page.getByRole("button", { name: "Issue token" }).click();
-  await expect(page.getByRole("link", { name: "Download .exe" })).toHaveAttribute("href", "/downloads/opspilot-agent-windows-x64.exe");
-  const enrollmentToken = await page.locator(".live-token-result code").innerText();
-  expect(enrollmentToken).toMatch(/^ops_enroll_/);
+  await page.getByLabel("Package name").fill(`Enrollment ${suffix}`);
+  const tokenResponsePromise = page.waitForResponse((response) => response.url().endsWith("/api/actions") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Create agent package" }).click();
+  const enrollmentToken = (await tokenResponsePromise).json().then((result) => result.token as string);
+  await expect(page.getByRole("button", { name: "Download .exe" })).toBeVisible();
+  expect(await enrollmentToken).toMatch(/^ops_enroll_/);
 
   const agentDataDir = await mkdtemp(path.join(os.tmpdir(), "opspilot-agent-e2e-"));
   temporaryAgentDirectories.add(agentDataDir);
+  const personalizedAgent = path.join(agentDataDir, "opspilot-agent-windows-x64.exe");
+  const agentDownload = await page.request.post("/api/agent/windows/download", { data: { token: await enrollmentToken } });
+  expect(agentDownload.ok()).toBe(true);
+  expect(agentDownload.headers()["content-type"]).toBe("application/vnd.microsoft.portable-executable");
+  expect(agentDownload.headers()["x-opspilot-server"]).toBe("http://127.0.0.1:3000");
+  expect(agentDownload.headers()["x-opspilot-sha256"]).toMatch(/^[a-f0-9]{64}$/);
+  const personalizedBytes = await agentDownload.body();
+  expect(personalizedBytes.length).toBeGreaterThan(50_000_000);
+  expect(personalizedBytes.subarray(-"OPSPILOT_ENROLLMENT_V1".length).toString("ascii")).toBe("OPSPILOT_ENROLLMENT_V1");
+  await writeFile(personalizedAgent, personalizedBytes);
+
   const agentScript = path.join(process.cwd(), "agent", "opspilot-agent.mjs");
-  const windowsAgent = path.join(process.cwd(), "public", "downloads", "opspilot-agent-windows-x64.exe");
-  const useWindowsExecutable = process.platform === "win32" && existsSync(windowsAgent);
-  const runAgent = (agentArgs: string[]) => execFileAsync(useWindowsExecutable ? windowsAgent : process.execPath, useWindowsExecutable ? agentArgs : [agentScript, ...agentArgs]);
-  const enrolled = await runAgent(["enroll", "--server", "http://127.0.0.1:3000", "--token", enrollmentToken, "--data-dir", agentDataDir]);
+  const useWindowsExecutable = process.platform === "win32";
+  const runAgent = (agentArgs: string[]) => execFileAsync(useWindowsExecutable ? personalizedAgent : process.execPath, useWindowsExecutable ? agentArgs : [agentScript, ...agentArgs]);
+  const enrolled = useWindowsExecutable
+    ? await execFileAsync(personalizedAgent, [], { env: { ...process.env, OPSPILOT_DATA_DIR: agentDataDir, OPSPILOT_EXIT_AFTER_ENROLL: "1" } })
+    : await runAgent(["enroll", "--server", "http://127.0.0.1:3000", "--token", await enrollmentToken, "--data-dir", agentDataDir]);
   expect(enrolled.stdout).toContain("Enrolled");
+  if (useWindowsExecutable) expect(enrolled.stdout).toContain("Personalized enrollment package detected");
   const firstCheckIn = await runAgent(["once", "--data-dir", agentDataDir]);
   expect(firstCheckIn.stdout).toContain("Check-in accepted");
 
