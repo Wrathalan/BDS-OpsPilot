@@ -24,19 +24,23 @@ test("root enrolls a live agent and completes an allowlisted task", async ({ pag
   await page.getByRole("button", { name: "Sign in to console" }).click();
   await expect(page.getByRole("heading", { name: "Operations overview" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Organizations" }).click();
-  await page.getByRole("button", { name: "Add organization" }).click();
+  await page.getByRole("link", { name: "Devices" }).click();
+  await page.getByRole("button", { name: "Enroll endpoint" }).click();
+  await expect(page.getByRole("button", { name: /Create organization/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Add location/ })).toBeDisabled();
+  await page.getByRole("button", { name: /Create organization/ }).click();
   await page.getByLabel("Organization name").fill(orgName);
   await page.getByLabel("URL slug").fill(`live-test-${suffix}`);
   await page.getByRole("button", { name: "Create organization" }).click();
-  const orgCard = page.locator("article").filter({ hasText: orgName });
-  await expect(orgCard).toBeVisible();
-  await orgCard.getByRole("button", { name: "Add site" }).click();
+  await expect(page.getByText("Organization created.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Enroll endpoint" }).click();
+  await page.getByRole("button", { name: /Add location/ }).click();
+  await page.getByLabel("Organization").selectOption({ label: orgName });
   await page.getByLabel("Location name").fill(locationName);
   await page.getByRole("button", { name: "Add location" }).click();
-  await expect(orgCard.getByText(locationName)).toBeVisible();
+  await expect(page.getByText("Location created.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Devices" }).click();
   await page.getByRole("button", { name: "Enroll endpoint" }).click();
   await page.getByLabel("Organization").selectOption({ label: orgName });
   await page.getByLabel("Location").selectOption({ label: locationName });
