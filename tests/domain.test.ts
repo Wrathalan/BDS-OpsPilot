@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertFingerprint, canRunAutomation, conditionConsequences, makeAuditEvent, organizationAllowed, remediateSimulatedService, resolveEffectivePolicy, shouldCreateAlert, toCsv, transitionPatchState, type PolicyNode } from "@/lib/domain";
+import { alertFingerprint, canRunAutomation, conditionConsequences, makeAuditEvent, organizationAllowed, resolveEffectivePolicy, shouldCreateAlert, toCsv, transitionPatchState, type PolicyNode } from "@/lib/domain";
 
 const root: PolicyNode = { id: "root", name: "Secure Baseline", settings: { cpuThreshold: 90, patchMode: "critical", notifications: ["in-app"] } };
 const child: PolicyNode = { id: "child", name: "Server Guardrails", settings: { cpuThreshold: 80, rebootBehavior: "manual" }, parent: root };
@@ -33,7 +33,6 @@ describe("monitoring and remediation", () => {
     expect(shouldCreateAlert([{ fingerprint, status: "resolved" }], fingerprint)).toBe(true);
   });
   it("creates a ticket and selects approved remediation from a condition", () => expect(conditionConsequences({ active: true, createTicket: true, automationKey: "restart-service" })).toEqual({ createAlert: true, createTicket: true, automationKey: "restart-service" }));
-  it("marks a simulated stopped service and alert recovered", () => expect(remediateSimulatedService({ serviceState: "stopped", deviceStatus: "critical", alertStatus: "open" })).toEqual({ serviceState: "running", deviceStatus: "online", alertStatus: "resolved" }));
 });
 
 describe("patch and automation safeguards", () => {

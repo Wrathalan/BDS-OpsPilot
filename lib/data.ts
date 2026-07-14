@@ -8,7 +8,7 @@ const safeJson = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 export async function getConsoleData(user: SessionUser) {
   const organizationWhere = user.allOrganizations ? { tenantId: user.tenantId } : { tenantId: user.tenantId, id: { in: user.organizationIds } };
   const deviceWhere = user.allOrganizations ? { tenantId: user.tenantId } : { tenantId: user.tenantId, organizationId: { in: user.organizationIds } };
-  const [organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, metrics] = await Promise.all([
+  const [organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, metrics, enrollmentTokens] = await Promise.all([
     db.organization.findMany({
       where: organizationWhere,
       include: {
@@ -33,6 +33,7 @@ export async function getConsoleData(user: SessionUser) {
     db.reportDefinition.findMany({ where: { tenantId: user.tenantId }, include: { runs: { orderBy: { startedAt: "desc" }, take: 1 } }, orderBy: { name: "asc" } }),
     db.notification.findMany({ where: { tenantId: user.tenantId, OR: [{ userId: null }, { userId: user.id }] }, orderBy: { createdAt: "desc" }, take: 12 }),
     db.deviceMetric.findMany({ where: { device: deviceWhere, timestamp: { gte: new Date(Date.now() - 30 * 86_400_000) } }, orderBy: { timestamp: "asc" } }),
+    db.enrollmentToken.findMany({ where: { tenantId: user.tenantId, ...(user.allOrganizations ? {} : { organizationId: { in: user.organizationIds } }) }, include: { organization: true, location: true, createdBy: true }, orderBy: { createdAt: "desc" }, take: 100 }),
   ]);
 
   const statusCounts = {
@@ -54,7 +55,7 @@ export async function getConsoleData(user: SessionUser) {
   });
   const osBreakdown = Object.entries(devices.reduce<Record<string, number>>((acc, device) => { const os = device.operatingSystem.split(" ")[0]; acc[os] = (acc[os] ?? 0) + 1; return acc; }, {})).map(([name, count]) => ({ name, count }));
 
-  return safeJson({ organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, trend, osBreakdown, stats: { totalDevices: devices.length, ...statusCounts, activeAlerts: activeAlerts.length, criticalAlerts: activeAlerts.filter((item) => item.severity === "critical").length, warningAlerts: activeAlerts.filter((item) => item.severity === "warning").length, patchCompliance, pendingReboot: devices.filter((item) => item.pendingReboot).length, automationSuccess: automationRuns.length ? Math.round(successfulRuns / automationRuns.length * 100) : 100, openTickets: openTickets.length } });
+  return safeJson({ generatedAt: new Date(), organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, enrollmentTokens, trend, osBreakdown, stats: { totalDevices: devices.length, ...statusCounts, activeAlerts: activeAlerts.length, criticalAlerts: activeAlerts.filter((item) => item.severity === "critical").length, warningAlerts: activeAlerts.filter((item) => item.severity === "warning").length, patchCompliance, pendingReboot: devices.filter((item) => item.pendingReboot).length, automationSuccess: automationRuns.length ? Math.round(successfulRuns / automationRuns.length * 100) : 100, openTickets: openTickets.length } });
 }
 
 function policyNode(policy: { id: string; name: string; settings: string; parent: { id: string; name: string; settings: string } | null }): PolicyNode {
@@ -62,7 +63,7 @@ function policyNode(policy: { id: string; name: string; settings: string; parent
 }
 
 export async function getDeviceDetail(user: SessionUser, id: string) {
-  const device = await db.device.findFirst({ where: { id, tenantId: user.tenantId, ...(user.allOrganizations ? {} : { organizationId: { in: user.organizationIds } }) }, include: { organization: true, location: true, hardwareInventory: true, softwareInventory: true, metrics: { orderBy: { timestamp: "desc" }, take: 30 }, alerts: { include: { ticket: true }, orderBy: { triggeredAt: "desc" } }, automationRuns: { include: { automation: true, requestedBy: true }, orderBy: { createdAt: "desc" }, take: 20 }, patchStates: { include: { patch: true }, orderBy: { patch: { releaseDate: "desc" } } }, agentSessions: { orderBy: { startedAt: "desc" }, take: 12 }, policyAssignments: { include: { policy: { include: { parent: true } } } } } });
+  const device = await db.device.findFirst({ where: { id, tenantId: user.tenantId, ...(user.allOrganizations ? {} : { organizationId: { in: user.organizationIds } }) }, include: { organization: true, location: true, hardwareInventory: true, softwareInventory: true, agentCredentials: { where: { revokedAt: null }, select: { id: true, secretPrefix: true, createdAt: true, lastUsedAt: true } }, metrics: { orderBy: { timestamp: "desc" }, take: 30 }, alerts: { include: { ticket: true }, orderBy: { triggeredAt: "desc" } }, automationRuns: { include: { automation: true, requestedBy: true }, orderBy: { createdAt: "desc" }, take: 20 }, patchStates: { include: { patch: true }, orderBy: { patch: { releaseDate: "desc" } } }, agentSessions: { orderBy: { startedAt: "desc" }, take: 12 }, policyAssignments: { include: { policy: { include: { parent: true } } } } } });
   if (!device) return null;
   const hierarchyAssignments = await db.policyAssignment.findMany({ where: { OR: [{ organizationId: device.organizationId }, { locationId: device.locationId }, { deviceId: device.id }] }, include: { policy: { include: { parent: true } } } });
   const candidates = hierarchyAssignments.map((assignment) => ({ level: assignment.deviceId ? "device" as const : assignment.locationId ? "location" as const : "organization" as const, policy: policyNode(assignment.policy) }));

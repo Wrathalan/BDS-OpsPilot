@@ -1,0 +1,37 @@
+services:
+  opspilot:
+    container_name: opspilot-rmm
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opspilot-rmm:local
+    restart: unless-stopped
+    ports:
+      - "${OPSPILOT_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: "file:/data/opspilot.db"
+      SESSION_SECRET: "${SESSION_SECRET:?Set SESSION_SECRET in .env}"
+      APP_URL: "${APP_URL:-http://127.0.0.1:3000}"
+      APP_MODE: "live"
+      TENANT_NAME: "${TENANT_NAME:-OpsPilot Live}"
+      TENANT_SLUG: "${TENANT_SLUG:-opspilot-local}"
+      BOOTSTRAP_ADMIN_USERNAME: "${BOOTSTRAP_ADMIN_USERNAME:-root}"
+      BOOTSTRAP_ADMIN_EMAIL: "${BOOTSTRAP_ADMIN_EMAIL:-root@localhost}"
+      BOOTSTRAP_ADMIN_NAME: "${BOOTSTRAP_ADMIN_NAME:-root}"
+      BOOTSTRAP_ADMIN_PASSWORD: "${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in .env}"
+    volumes:
+      - opspilot_data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+volumes:
+  opspilot_data:
+    name: opspilot-rmm-data

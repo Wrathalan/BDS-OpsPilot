@@ -16,6 +16,8 @@
 /playwright-report/
 /prisma/*.db
 /prisma/*.db-journal
+/.agent-data/
+**/agent.json
 
 # next.js
 /.next/

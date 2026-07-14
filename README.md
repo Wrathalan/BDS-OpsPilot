@@ -1,130 +1,110 @@
 # OpsPilot RMM
 
-OpsPilot RMM is a local, simulator-first remote monitoring and management console. It demonstrates multi-tenant device operations, policy evaluation, alerting, approved remediation, patch workflows, ticketing, reporting, and privileged-action auditing without connecting to real endpoints.
+OpsPilot is a local-first RMM control plane for authenticated endpoint enrollment, real host telemetry, scoped policy evaluation, threshold alerts, an allowlisted agent task queue, reporting, and privileged-action auditing.
 
-## Quick start
+## Docker quick start
+
+Requirements: Docker Desktop with Compose.
+
+```powershell
+Copy-Item .env.example .env
+# Set unique values for SESSION_SECRET and BOOTSTRAP_ADMIN_PASSWORD in .env
+docker compose up --build -d
+docker compose ps
+```
+
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000) and sign in with the username configured by `BOOTSTRAP_ADMIN_USERNAME` and its configured password. The container health check verifies both the web server and database. SQLite is persisted at `/data/opspilot.db` in the named volume `opspilot-rmm-data`.
+
+```powershell
+docker compose logs -f opspilot
+docker compose down
+```
+
+`docker compose down` preserves the named data volume. Use `docker compose down --volumes` only when you intentionally want to delete all control-plane data.
+
+## Native development
 
 Requirements: Node.js 22.13 or newer and npm.
 
 ```powershell
 npm install
 Copy-Item .env.example .env
+# Configure .env before continuing
 npm run local
 ```
 
-`npm run local` is the single fresh-workspace command: it generates the Prisma client, creates/updates the SQLite schema, seeds the demonstration tenant, and starts OpsPilot at [http://127.0.0.1:3000](http://127.0.0.1:3000).
+`npm run setup` generates the Prisma client, synchronizes the SQLite schema, and idempotently bootstraps the tenant, permissions, roles, root administrator, two low-risk agent actions, and a live endpoint baseline. It does not create endpoints, alerts, tickets, patches, or telemetry.
 
-For later launches, when the database is already prepared:
+## Enroll an endpoint
+
+1. Sign in and create an organization and location.
+2. Select **Devices → Enroll endpoint** and issue a short-lived, scoped token.
+3. Copy the token immediately; only its server-side hash is retained.
+4. On an authorized test machine, run:
 
 ```powershell
-npm run dev
+node agent/opspilot-agent.mjs enroll --server http://127.0.0.1:3000 --token <one-time-token> --data-dir .agent-data
+node agent/opspilot-agent.mjs once --data-dir .agent-data
+node agent/opspilot-agent.mjs run --data-dir .agent-data
 ```
 
-## Demo accounts
+The agent collects actual host identity, OS, CPU, memory, disk, IP, user, uptime, and a minimal inventory using Node.js APIs. `once` performs one live cycle and exits; `run` stays in the foreground and polls for two allowlisted tasks: status refresh and inventory refresh. It never executes a supplied shell command or arbitrary payload.
 
-These credentials exist only in the local seed data. They are not production defaults.
-
-| Role | Email | Password | Scope |
-|---|---|---|---|
-| System Administrator | `admin@opspilot.local` | `OpsPilot!2026` | Entire tenant |
-| Technician | `tech@opspilot.local` | `Technician!2026` | Redwood Dental and Kite & Harbor |
-| Read-Only Auditor | `auditor@opspilot.local` | `Auditor!2026` | Entire tenant, read-only |
-
-Run `npm run db:seed` at any time to reset the local demonstration data. Never carry these users or passwords into a deployed environment.
-
-## What is included
-
-- Original, responsive operations-console UI with dark/light themes and keyboard-accessible controls.
-- Tenant → organization → location → device hierarchy with organization-scoped technicians.
-- 30 seeded simulated endpoints across Windows, Windows Server, macOS, and Ubuntu.
-- Hardware/software inventory, telemetry, status history, bulk selection, search, sorting, and filters.
-- Parent/child policy inheritance plus device > location > organization assignment precedence.
-- Effective-policy display that identifies the origin of every setting.
-- Alert deduplication, acknowledgement, suppression, resolution, notification, ticket, and remediation flows.
-- Safe automation library with no shell, PowerShell, credential, persistence, or arbitrary-command capability.
-- Simulated patch catalog, approval, test/production rings, install state transitions, failures, reboot state, and CSV compliance reporting.
-- Integrated ticket board and SLA metadata.
-- Explicitly labeled simulated diagnostic sessions with requester/approval/end history and read-only process, service, and file inventory examples.
-- Saved report definitions, CSV export, dashboard trends, and append-only audit events.
-- Thirty days of seeded chart data plus an in-browser telemetry pulse every 45 seconds while an authorized operator is signed in.
+Platform program and state locations are documented in [agent/INSTALL_PATHS.md](agent/INSTALL_PATHS.md). The repository-local `.agent-data` path is ignored by Git.
 
 ## Architecture
 
-- **Next.js 16 App Router + React 19 + TypeScript** for server-rendered routes and interactive console components.
-- **Tailwind CSS 4** is available through the global stylesheet; the product design system uses explicit CSS variables and semantic component classes for dense control-plane layouts.
-- **Prisma 6 + SQLite** for zero-configuration persistence. The checked-in initial migration is in `prisma/migrations`; `prisma/schema.prisma` is the domain source of truth.
-- **Zod** validates every authentication and action payload.
-- **Route handlers** implement authentication, privileged actions, simulator transitions, and CSV exports.
-- **Database-backed automation runs, agent sessions, metrics, alerts, tickets, reports, and audit records** model background/scheduled work and evidence. The MVP runs simulator pulses from the active console; a production worker can claim the same records later.
-- **Vitest** covers domain and security rules. **Playwright** covers the administrator create → enroll → alert → remediate → audit workflow.
+- Next.js 16 App Router, React 19, and TypeScript.
+- Prisma 6 and SQLite for single-node persistence.
+- Zod validation on authentication, operator actions, enrollment, check-ins, and task results.
+- One-time enrollment tokens and separately revocable per-device agent credentials.
+- Server-side RBAC and organization scoping.
+- Database-backed telemetry, alert deduplication/recovery, task runs, and append-only audit workflows.
+- Docker health checking and a persistent named volume.
 
-Important server surfaces:
+Important surfaces:
 
-- `app/api/auth/*`: rate-limited password sign-in and secure session lifecycle.
-- `app/api/actions/route.ts`: validated, permission-checked control-plane operations.
-- `app/api/reports/[report]/route.ts`: scoped CSV exports.
-- `lib/rbac.ts`: role and organization authorization.
-- `lib/domain.ts`: policy resolution, deduplication, patch transitions, CSV, and domain rules.
-- `prisma/seed.ts`: deterministic demonstration estate.
+- `app/api/agent/enroll`: consumes a scoped enrollment token and returns an agent secret once.
+- `app/api/agent/check-in`: accepts authenticated telemetry and evaluates live thresholds.
+- `app/api/agent/tasks`: exposes queued allowlisted tasks to the enrolled device only.
+- `app/api/actions/route.ts`: validates and authorizes operator actions.
+- `agent/opspilot-agent.mjs`: foreground cross-platform live-test agent.
+- `prisma/bootstrap.mjs`: idempotent tenant and root-account bootstrap.
 
 ## Security boundaries
 
-OpsPilot treats the console as a privileged control plane even in local mode:
+- User passwords use bcrypt with cost 12.
+- Session tokens and agent secrets are stored as hashes; plaintext enrollment and agent credentials are returned only once.
+- Session cookies are HTTP-only and SameSite Strict, and become Secure in production.
+- Mutations validate origin, payload, tenant, organization scope, and permission.
+- Agent tasks are hard-coded to `refresh-agent` and `inventory-refresh`; there is no remote shell, script runner, file browser, service control, process control, credential collection, or persistence installer.
+- The agent does not create a Windows service, scheduled task, launch daemon, startup item, or background installation.
+- Normal application routes do not expose audit edit or delete operations.
+- `.env`, agent state, and credentials are ignored by Git.
 
-- Passwords are hashed with bcrypt cost 12.
-- Random session tokens are stored only as SHA-256 hashes; cookies are HTTP-only, SameSite Strict, and Secure in production.
-- Authentication is rate-limited per request source.
-- Mutation origins are checked and all inputs are schema-validated.
-- Role and organization checks run on the server for every protected operation and query.
-- Technicians cannot access unassigned organizations; auditors cannot mutate state.
-- High-impact actions require permission/confirmation and must exist in the approved automation catalog.
-- Audit events record actor, tenant, organization, action, resource, time, request context, before/after summary, and result. Normal routes expose no audit edit/delete operation.
-- `.env` is ignored. Copy `.env.example` and use a unique `SESSION_SECRET` outside local development.
-
-The local in-memory login limiter is appropriate for one process only. A distributed deployment must move rate-limit state to a shared store and enforce HTTPS, secret rotation, stronger CSRF tokens where cross-site flows are introduced, MFA/SSO, session revocation, and database-level immutable audit retention.
-
-## Simulator boundary
-
-Every endpoint, telemetry sample, service, process, file path, patch install, reboot, support session, and automation result is simulated. OpsPilot never claims a real connection. There is no remote desktop, remote shell, arbitrary script runner, credential harvesting, or persistence mechanism.
-
-The executor interface is represented by approved `Automation` definitions and recorded `AutomationRun` state transitions. A production extension should require separately reviewed, signed, versioned packages and an authenticated agent transport rather than adding generic command execution.
+Use HTTPS and a reachable `APP_URL` before testing across machines. Restrict the endpoint state-directory ACL, rotate any disclosed credential, and use test systems you are authorized to monitor.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `npm run local` | Prepare, seed, and launch a fresh local app |
-| `npm run setup` | Generate Prisma client, sync SQLite schema, and reseed |
-| `npm run dev` | Start development server |
-| `npm run build` | Create production build |
-| `npm start` | Start production build |
-| `npm run typecheck` | Strict TypeScript validation |
-| `npm run lint` | ESLint validation |
-| `npm test` | Vitest domain/security suite |
-| `npm run test:e2e` | Playwright administrator workflow |
-| `npm run check` | Typecheck, lint, tests, and production build |
-| `npm run db:seed` | Reset deterministic demonstration data |
+| `npm run local` | Bootstrap and launch the development server |
+| `npm run setup` | Generate Prisma client, sync schema, and bootstrap live defaults |
+| `npm run dev` | Start the local development server |
+| `npm run build` | Create a production build |
+| `npm start` | Start the production server |
+| `npm run typecheck` | Run strict TypeScript validation |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run the Vitest domain/security suite |
+| `npm run test:e2e` | Run the root → enroll → check-in → task → audit workflow |
+| `npm run check` | Typecheck, lint, unit tests, and production build |
+| `npm run docker:up` | Build and start the persistent Docker stack |
+| `npm run docker:down` | Stop the Docker stack without deleting data |
 
-## Testing
+## Current live-test limits
 
-The Vitest suite covers tenant isolation, organization scope, policy inheritance and precedence, alert deduplication, condition-to-ticket behavior, automatic simulated recovery, patch transitions, automation authorization, audit-event construction, and CSV escaping.
-
-The Playwright scenario signs in as the administrator; creates an organization, location, and policy; generates an endpoint; triggers a stopped-service condition; confirms an alert; runs the approved restart automation; verifies recovery/resolution; and confirms `automation.executed` in the audit log.
-
-## Current MVP limitations
-
-- SQLite and the in-process rate limiter target a single local instance.
-- Telemetry scheduling runs while an authorized console is open; there is no separate durable worker daemon yet.
-- Notifications are in-app only, report charts are local, and printable views use browser printing.
-- Patch/download/service/process/file data are simulator records, not a real agent protocol.
-- Policy editing starts from safe defaults; a full visual rule/maintenance-window editor is a logical next UI increment.
-- Session approval is represented by an explicit recorded demo user, not an external end-user consent client.
-
-## Production-hardening path
-
-1. Move to managed PostgreSQL, shared rate limiting, durable job claims, and immutable audit storage.
-2. Add OIDC/SAML, MFA, SCIM, short-lived privileged elevation, and centralized session revocation.
-3. Define a mutually authenticated agent protocol with certificate rotation, signed payloads, replay protection, and per-tenant enrollment tokens.
-4. Build an isolated, signed-package automation runner with review, versioning, staged rollout, and kill switches.
-5. Add distributed policy evaluation, maintenance-window scheduling, retry/idempotency semantics, outbound notification integrations, backups, observability, and security testing.
-6. Commission threat modeling, penetration testing, dependency/SBOM controls, privacy review, and compliance retention policy before real endpoint use.
+- SQLite and in-process rate limiting target one control-plane instance.
+- The agent must remain open in a foreground terminal; service installation is intentionally absent.
+- Software inventory is intentionally minimal and uses only cross-platform Node.js host APIs.
+- Patch discovery and installation, remote support, command execution, and endpoint persistence are not implemented.
+- Notifications are in-app only. Production use needs managed persistence, shared rate limiting, TLS, MFA/SSO, credential rotation, backups, replay protection, signed agent releases, observability, and independent security testing.

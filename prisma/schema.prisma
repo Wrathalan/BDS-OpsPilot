@@ -26,6 +26,7 @@ model Tenant {
   auditEvents       AuditEvent[]
   reportDefinitions ReportDefinition[]
   deviceGroups      DeviceGroup[]
+  enrollmentTokens  EnrollmentToken[]
 }
 
 model User {
@@ -33,6 +34,7 @@ model User {
   tenantId                String
   roleId                  String
   email                   String
+  username                String
   name                    String
   passwordHash            String
   active                  Boolean                 @default(true)
@@ -49,8 +51,10 @@ model User {
   ticketComments          TicketComment[]
   notifications           Notification[]
   auditEvents             AuditEvent[]
+  createdEnrollmentTokens EnrollmentToken[]
 
   @@unique([tenantId, email])
+  @@unique([tenantId, username])
   @@index([tenantId, active])
 }
 
@@ -120,6 +124,7 @@ model Organization {
   alerts            Alert[]
   tickets           Ticket[]
   auditEvents       AuditEvent[]
+  enrollmentTokens  EnrollmentToken[]
 
   @@unique([tenantId, slug])
 }
@@ -134,6 +139,7 @@ model Location {
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   devices           Device[]
   policyAssignments PolicyAssignment[]
+  enrollmentTokens  EnrollmentToken[]
 
   @@unique([organizationId, name])
 }
@@ -166,7 +172,7 @@ model Device {
   activeAlertCount  Int                     @default(0)
   customFields      String                  @default("{}")
   notes             String                  @default("")
-  simulatorState    String                  @default("running")
+  managementMode    String                  @default("agent")
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
   tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -181,6 +187,7 @@ model Device {
   automationRuns    AutomationRun[]
   patchStates       DevicePatchState[]
   tickets           Ticket[]
+  agentCredentials  AgentCredential[]
 
   @@unique([tenantId, hostname])
   @@index([tenantId, organizationId, status])
@@ -200,18 +207,53 @@ model DeviceGroup {
 }
 
 model AgentSession {
-  id            String    @id @default(cuid())
-  deviceId      String
-  type          String    @default("telemetry")
-  status        String    @default("active")
-  requestedBy   String?
-  approvedBy    String?
-  simulatorOnly Boolean   @default(true)
-  startedAt     DateTime  @default(now())
-  endedAt       DateTime?
-  device        Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  deviceId    String
+  type        String    @default("telemetry")
+  status      String    @default("active")
+  requestedBy String?
+  approvedBy  String?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([deviceId, startedAt])
+}
+
+model EnrollmentToken {
+  id             String       @id @default(cuid())
+  tenantId       String
+  organizationId String
+  locationId     String
+  createdById    String
+  name           String
+  tokenHash      String       @unique
+  tokenPrefix    String
+  expiresAt      DateTime
+  maxUses        Int          @default(1)
+  uses           Int          @default(0)
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location       Location     @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiresAt])
+  @@index([organizationId, locationId])
+}
+
+model AgentCredential {
+  id           String    @id @default(cuid())
+  deviceId     String
+  secretHash   String    @unique
+  secretPrefix String
+  lastUsedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  device       Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, revokedAt])
 }
 
 model DeviceMetric {

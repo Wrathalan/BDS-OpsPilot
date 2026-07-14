@@ -5,6 +5,7 @@ export type SessionUser = {
   tenantId: string;
   name: string;
   email: string;
+  username: string;
   roleName: string;
   roleKey: string;
   permissionKeys: string[];
@@ -23,6 +24,7 @@ export async function loadUser(userId: string): Promise<SessionUser | null> {
     tenantId: user.tenantId,
     name: user.name,
     email: user.email,
+    username: user.username,
     roleName: user.role.name,
     roleKey: user.role.systemKey,
     permissionKeys: user.role.permissions.map((item) => item.permission.key),

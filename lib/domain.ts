@@ -81,11 +81,6 @@ export function conditionConsequences(condition: { active: boolean; createTicket
   return { createAlert: condition.active, createTicket: condition.active && condition.createTicket, automationKey: condition.active ? condition.automationKey ?? null : null };
 }
 
-export function remediateSimulatedService(state: { serviceState: string; deviceStatus: string; alertStatus: string }) {
-  if (state.serviceState !== "stopped") return state;
-  return { serviceState: "running", deviceStatus: "online", alertStatus: "resolved" };
-}
-
 export function makeAuditEvent(input: { actorId: string; tenantId: string; action: string; resourceType: string; resourceId: string; success?: boolean }) {
   return { ...input, success: input.success ?? true, createdAt: new Date(), immutable: true as const };
 }
