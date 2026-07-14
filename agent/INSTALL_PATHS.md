@@ -13,7 +13,7 @@ The native Windows configuration contains a DPAPI-protected agent credential bou
 
 The Docker control plane uses `/app` for application files and `/data/opspilot.db` for persistent SQLite data. Compose stores `/data` in the named volume `opspilot-rmm-data`.
 
-For a native Windows live test, create an agent package in OpsPilot, download the personalized executable, and launch it. The server address and scoped token are embedded in that download, so enrollment, the initial check-in, protected state creation, and foreground monitoring start without prompts. Set `APP_URL` to a control-plane address the endpoint can reach. A trusted terminal can still use the universal build directly:
+For a native Windows live test, create an agent package in OpsPilot, download the personalized executable, and launch it. The server address and scoped token are embedded in that download, so enrollment, the initial check-in, protected state creation, and foreground monitoring start without prompts. Set `AGENT_SERVER_URL` to a control-plane address the endpoint can reach. A trusted terminal can still use the universal build directly:
 
 ```powershell
 .\opspilot-agent-windows-x64.exe enroll --server http://127.0.0.1:3000 --token <one-time-token>

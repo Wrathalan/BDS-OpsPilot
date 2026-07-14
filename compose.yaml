@@ -12,6 +12,7 @@ services:
       DATABASE_URL: "file:/data/opspilot.db"
       SESSION_SECRET: "${SESSION_SECRET:?Set SESSION_SECRET in .env}"
       APP_URL: "${APP_URL:-http://127.0.0.1:3000}"
+      AGENT_SERVER_URL: "${AGENT_SERVER_URL:-http://127.0.0.1:3000}"
       APP_MODE: "live"
       TENANT_NAME: "${TENANT_NAME:-OpsPilot Live}"
       TENANT_SLUG: "${TENANT_SLUG:-opspilot-local}"

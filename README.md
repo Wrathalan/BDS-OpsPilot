@@ -40,7 +40,7 @@ npm run local
 1. Sign in and create an organization and location.
 2. Select **Devices → Enroll endpoint**, choose the endpoint scope, and create an agent package.
 3. Download the personalized Windows executable and copy it to the authorized endpoint.
-4. Launch `opspilot-agent-windows-x64.exe`. It connects to the configured `APP_URL`, enrolls itself, saves its protected credential, checks in, and starts foreground monitoring without prompts or command-line arguments.
+4. Launch `opspilot-agent-windows-x64.exe`. It connects to the configured `AGENT_SERVER_URL`, enrolls itself, saves its protected credential, checks in, and starts foreground monitoring without prompts or command-line arguments.
 
 The Windows x64 executable is self-contained: the endpoint does not need Node.js or .NET installed. OpsPilot embeds the control-plane address and scoped enrollment token into each personalized download without placing the token in the download URL. The agent collects actual host identity, OS, CPU, memory, disk, IP, user, uptime, reboot state, and minimal software inventory; enrolls the device; performs an authenticated check-in; and DPAPI-protects its agent secret for the enrolling Windows user.
 
@@ -96,7 +96,7 @@ Important surfaces:
 - Normal application routes do not expose audit edit or delete operations.
 - `.env`, agent state, and credentials are ignored by Git.
 
-Use HTTPS and set `APP_URL` to an address reachable by endpoints before testing across machines. Treat an unused personalized executable as an enrollment credential, restrict the endpoint state-directory ACL, rotate any disclosed credential, and use test systems you are authorized to monitor.
+Use HTTPS and set `AGENT_SERVER_URL` to an address reachable by endpoints before testing across machines; `APP_URL` remains the browser/control-plane origin. Treat an unused personalized executable as an enrollment credential, restrict the endpoint state-directory ACL, rotate any disclosed credential, and use test systems you are authorized to monitor.
 
 ## Commands
 

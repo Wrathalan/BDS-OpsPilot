@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Enrollment token is invalid, expired, revoked, or fully used." }, { status: 400 });
     assertOrganization(user, enrollment.organizationId);
 
-    const server = new URL(process.env.APP_URL ?? request.url).origin;
+    const server = new URL(process.env.AGENT_SERVER_URL ?? process.env.APP_URL ?? request.url).origin;
     const payload = Buffer.from(JSON.stringify({ server, token }), "utf8");
     const payloadLength = Buffer.allocUnsafe(4);
     payloadLength.writeUInt32LE(payload.length);

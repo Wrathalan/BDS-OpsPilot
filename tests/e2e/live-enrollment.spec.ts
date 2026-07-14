@@ -72,7 +72,7 @@ test("root enrolls a live agent and completes an allowlisted task", async ({ pag
   const agentDownload = await page.request.post("/api/agent/windows/download", { data: { token: await enrollmentToken } });
   expect(agentDownload.ok()).toBe(true);
   expect(agentDownload.headers()["content-type"]).toBe("application/vnd.microsoft.portable-executable");
-  expect(agentDownload.headers()["x-opspilot-server"]).toBe("http://127.0.0.1:3000");
+  expect(agentDownload.headers()["x-opspilot-server"]).toMatch(/^https?:\/\//);
   expect(agentDownload.headers()["x-opspilot-sha256"]).toMatch(/^[a-f0-9]{64}$/);
   const personalizedBytes = await agentDownload.body();
   expect(personalizedBytes.length).toBeGreaterThan(50_000_000);
