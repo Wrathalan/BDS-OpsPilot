@@ -3,7 +3,7 @@
 OpsPilot is a local-first RMM control plane for authenticated endpoint enrollment, real host telemetry, scoped policy evaluation, threshold alerts, an allowlisted agent task queue, reporting, and privileged-action auditing.
 
 - Repository: [Wrathalan/BDS-OpsPilot](https://github.com/Wrathalan/BDS-OpsPilot)
-- Current live-testing branch: `agent/live-docker-agent` ([draft PR #1](https://github.com/Wrathalan/BDS-OpsPilot/pull/1))
+- Deployment branch: `main` ([live deployment merge](https://github.com/Wrathalan/BDS-OpsPilot/pull/1))
 
 OpsPilot is ready for authorized LAN environment testing. It is not hardened for public internet exposure; review the production limitations and security boundaries below before expanding access.
 
@@ -11,10 +11,10 @@ OpsPilot is ready for authorized LAN environment testing. It is not hardened for
 
 Requirement: Docker Engine or Docker Desktop with Compose v2.
 
-Clone the current live-testing build:
+Clone the current main build:
 
 ```console
-git clone --branch agent/live-docker-agent https://github.com/Wrathalan/BDS-OpsPilot.git
+git clone https://github.com/Wrathalan/BDS-OpsPilot.git
 cd BDS-OpsPilot
 ```
 
