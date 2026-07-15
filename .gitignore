@@ -16,6 +16,12 @@
 /playwright-report/
 /prisma/*.db
 /prisma/*.db-journal
+/.agent-data/
+**/agent.json
+/public/downloads/*.exe
+/public/downloads/*.sha256
+/agent/windows/bin/
+/agent/windows/obj/
 
 # next.js
 /.next/
@@ -34,6 +40,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -45,3 +52,4 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/remote/packages/

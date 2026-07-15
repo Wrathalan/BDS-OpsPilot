@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-const schema = z.object({ email: z.email().max(160), password: z.string().min(8).max(200) });
+const schema = z.object({ identifier: z.string().min(1).max(160), password: z.string().min(8).max(200) });
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
 export async function POST(request: Request) {
@@ -13,7 +13,8 @@ export async function POST(request: Request) {
   if (current && current.resetAt > Date.now() && current.count >= 8) return NextResponse.json({ error: "Too many sign-in attempts. Try again in 15 minutes." }, { status: 429 });
   try {
     const input = schema.parse(await request.json());
-    const user = await db.user.findFirst({ where: { email: input.email.toLowerCase(), active: true } });
+    const identifier = input.identifier.toLowerCase();
+    const user = await db.user.findFirst({ where: { active: true, OR: [{ username: identifier }, { email: identifier }] } });
     if (!user || !(await compare(input.password, user.passwordHash))) {
       attempts.set(ip, { count: (current?.resetAt ?? 0) > Date.now() ? current!.count + 1 : 1, resetAt: Date.now() + 15 * 60_000 });
       return NextResponse.json({ error: "Email or password is incorrect." }, { status: 401 });
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     await db.auditEvent.create({ data: { tenantId: user.tenantId, actorId: user.id, action: "user.login", resourceType: "Session", resourceId: user.id, requestContext: ip, afterSummary: JSON.stringify({ method: "password", success: true }) } });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: "Enter a valid email and password." }, { status: 400 });
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Enter a valid username or email and password." }, { status: 400 });
     return NextResponse.json({ error: "Sign-in is temporarily unavailable." }, { status: 500 });
   }
 }

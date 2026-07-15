@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, Bell, Bot, Building2, ChevronDown, CircleUserRound, FileBarChart, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Radar, Search, ShieldCheck, Sun, TicketCheck, Wrench, X } from "lucide-react";
+import { Activity, Bell, Bot, Building2, ChevronDown, CircleUserRound, FileBarChart, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Search, ShieldCheck, Sun, TicketCheck, Wrench, X } from "lucide-react";
 import type { SessionUser } from "@/lib/rbac";
 
 const navItems = [
@@ -27,13 +27,6 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
     return () => { cancelAnimationFrame(frame); window.removeEventListener("keydown", key); };
   }, []);
 
-  useEffect(() => {
-    if (!user.permissionKeys.includes("device.manage")) return;
-    const pulse = () => fetch("/api/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "simulatorPulse" }) }).catch(() => undefined);
-    const timer = window.setInterval(pulse, 45_000);
-    return () => window.clearInterval(timer);
-  }, [user.permissionKeys]);
-
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next); document.documentElement.dataset.theme = next; localStorage.setItem("opspilot-theme", next);
@@ -44,22 +37,22 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
-        <div className="sidebar-head"><Link href="/overview" className="brand"><span className="brand-mark"><Radar size={20} /></span><span>OpsPilot <em>RMM</em></span></Link><button className="icon-button sidebar-close" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={19} /></button></div>
-        <div className="tenant-switch"><span className="tenant-avatar">N</span><span><small>Tenant</small><strong>Northstar Managed IT</strong></span><ChevronDown size={15} /></div>
+        <button className="icon-button sidebar-close sidebar-close-floating" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={17} /></button>
+        <button className="tenant-switch" type="button"><span className="tenant-avatar">OP</span><span><small>Management scope</small><strong>OpsPilot Live</strong></span><ChevronDown size={13} /></button>
         <nav aria-label="Primary navigation">
           <span className="nav-label">Operations</span>
-          {navItems.slice(0, 8).map(([label, href, Icon]) => <Link key={href} href={href} className={pathname === href || (href === "/devices" && pathname.startsWith("/devices/")) ? "active" : ""} onClick={() => setMobileOpen(false)}><Icon size={17} /><span>{label}</span>{label === "Alerts" && <b className="nav-count">8</b>}</Link>)}
+          {navItems.slice(0, 8).map(([label, href, Icon]) => <Link key={href} href={href} className={pathname === href || (href === "/devices" && pathname.startsWith("/devices/")) ? "active" : ""} onClick={() => setMobileOpen(false)}><Icon size={17} /><span>{label}</span></Link>)}
           <span className="nav-label nav-label-second">Control</span>
           {navItems.slice(8).map(([label, href, Icon]) => <Link key={href} href={href} className={pathname === href ? "active" : ""} onClick={() => setMobileOpen(false)}><Icon size={17} /><span>{label}</span></Link>)}
         </nav>
-        <div className="sidebar-foot"><div className="sim-status"><span className="pulse-ring"><i /></span><span><strong>Agent simulator</strong><small>Telemetry is active</small></span></div><button onClick={logout} className="profile-button"><span className="user-avatar">{user.name.split(" ").map((part) => part[0]).join("")}</span><span><strong>{user.name}</strong><small>{user.roleName}</small></span><LogOut size={16} /></button></div>
+        <div className="sidebar-foot"><div className="gateway-status"><span className="status-dot status-dot-online" /><span><strong>Agent gateway</strong><small>Enrollment available</small></span></div><button onClick={logout} className="profile-button"><span className="user-avatar">{user.name.split(" ").map((part) => part[0]).join("")}</span><span><strong>{user.name}</strong><small>{user.roleName}</small></span><LogOut size={14} /></button></div>
       </aside>
       {mobileOpen && <button className="sidebar-scrim" onClick={() => setMobileOpen(false)} aria-label="Close navigation" />}
       <div className="app-main">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <form className="global-search" onSubmit={search}><Search size={17} /><input ref={searchRef} name="q" placeholder="Search devices, alerts, tickets…" aria-label="Global search" /><kbd>/</kbd></form>
-          <div className="topbar-actions"><span className="sim-badge"><span /> SIMULATOR</span><button className="icon-button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button><div className="notification-wrap"><button className="icon-button" onClick={() => setNotifications(!notifications)} aria-label="Notifications"><Bell size={18} /><i /></button>{notifications && <div className="notification-popover"><strong>Notifications</strong><button onClick={() => router.push("/alerts")}>Critical service condition detected <small>2 minutes ago</small></button><button onClick={() => router.push("/patching")}>Patch test ring is ready <small>18 minutes ago</small></button><button onClick={() => router.push("/tickets")}>SLA target approaching <small>41 minutes ago</small></button></div>}</div></div>
+          <form className="global-search" onSubmit={search}><Search size={15} /><input ref={searchRef} name="q" placeholder="Search devices, alerts, tickets" aria-label="Global search" /><kbd>/</kbd></form>
+          <div className="topbar-actions"><span className="environment-badge"><span className="status-dot status-dot-online" /> LIVE</span><button className="icon-button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button><div className="notification-wrap"><button className="icon-button" onClick={() => setNotifications(!notifications)} aria-label="Notifications"><Bell size={16} /><i /></button>{notifications && <div className="notification-popover"><strong>Notifications</strong><button onClick={() => router.push("/alerts")}>Live agent alerts <small>Open alert center</small></button><button onClick={() => router.push("/devices")}>Endpoint check-ins <small>View enrolled devices</small></button><button onClick={() => router.push("/administration")}>Enrollment tokens <small>Manage agent access</small></button></div>}</div></div>
         </header>
         <main className="content-area">{children}</main>
       </div>
