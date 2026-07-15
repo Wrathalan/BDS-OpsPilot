@@ -8,6 +8,7 @@ const permissions = [
   ["organization.manage", "Create and update organizations and locations"],
   ["device.view", "View device inventory and telemetry"],
   ["device.manage", "Enroll devices and update device state"],
+  ["remote.control", "Start audited remote desktop support sessions"],
   ["alert.manage", "Acknowledge, assign, suppress, and resolve alerts"],
   ["automation.run", "Queue approved agent actions"],
   ["patch.manage", "Approve and coordinate patch deployment"],
@@ -18,7 +19,7 @@ const permissions = [
 
 const roleSpecs = [
   { name: "System Administrator", key: "admin", description: "Full tenant administration", permissions: permissions.map(([key]) => key) },
-  { name: "Technician", key: "technician", description: "Scoped operations and approved actions", permissions: ["device.view", "device.manage", "alert.manage", "automation.run", "patch.manage", "ticket.manage", "report.view", "audit.view"] },
+  { name: "Technician", key: "technician", description: "Scoped operations and approved actions", permissions: ["device.view", "device.manage", "remote.control", "alert.manage", "automation.run", "patch.manage", "ticket.manage", "report.view", "audit.view"] },
   { name: "Read-Only Auditor", key: "auditor", description: "Read-only compliance access", permissions: ["device.view", "report.view", "audit.view"] },
 ];
 

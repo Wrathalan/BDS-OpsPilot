@@ -4,16 +4,33 @@ OpsPilot is a local-first RMM control plane for authenticated endpoint enrollmen
 
 ## Docker quick start
 
-Requirements: Docker Desktop with Compose.
+Requirement: Docker Engine or Docker Desktop with Compose v2.
+
+Windows:
 
 ```powershell
-Copy-Item .env.example .env
-# Set unique values for SESSION_SECRET and BOOTSTRAP_ADMIN_PASSWORD in .env
-docker compose up --build -d
-docker compose ps
+.\scripts\docker-setup.ps1
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000) and sign in with the username configured by `BOOTSTRAP_ADMIN_USERNAME` and its configured password. The container health check verifies both the web server and database. SQLite is persisted at `/data/opspilot.db` in the named volume `opspilot-rmm-data`.
+Linux or Unraid:
+
+```bash
+./scripts/docker-setup.sh
+```
+
+That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, starts OpsPilot plus the RustDesk ID and relay services, and waits for the application health check. It is safe to rerun: an existing `.env`, administrator password, database volume, and RustDesk server identity are retained.
+
+The generated sign-in details and application URL are printed when the first setup finishes. They remain available in the local `.env`, which is ignored by Git. To override automatic LAN detection, provide the host address explicitly:
+
+```powershell
+.\scripts\docker-setup.ps1 -HostAddress 192.168.2.107
+```
+
+```bash
+OPSPILOT_HOST=192.168.2.107 ./scripts/docker-setup.sh
+```
+
+The container health check verifies both the web server and database. SQLite is persisted at `/data/opspilot.db` in the named volume `opspilot-rmm-data`.
 
 ```powershell
 docker compose logs -f opspilot
@@ -40,7 +57,7 @@ npm run local
 1. Sign in and create an organization and location.
 2. Select **Devices → Enroll endpoint**, choose the endpoint scope, and create an agent package.
 3. Download the personalized Windows executable and copy it to the authorized endpoint.
-4. Launch `opspilot-agent-windows-x64.exe`. It connects to the configured `AGENT_SERVER_URL`, enrolls itself, saves its protected credential, checks in, and starts foreground monitoring without prompts or command-line arguments.
+4. Launch `opspilot-agent-windows-x64.exe` and approve the Windows elevation request. It connects to `AGENT_SERVER_URL`, enrolls itself, saves its protected credential, checks in, provisions both remote-support agents, and starts foreground monitoring without configuration prompts or command-line arguments.
 
 The Windows x64 executable is self-contained: the endpoint does not need Node.js or .NET installed. OpsPilot embeds the control-plane address and scoped enrollment token into each personalized download without placing the token in the download URL. The agent collects actual host identity, OS, CPU, memory, disk, IP, user, uptime, reboot state, and minimal software inventory; enrolls the device; performs an authenticated check-in; and DPAPI-protects its agent secret for the enrolling Windows user.
 
@@ -60,9 +77,20 @@ node agent/opspilot-agent.mjs once --data-dir .agent-data
 node agent/opspilot-agent.mjs run --data-dir .agent-data
 ```
 
-Both agents use the same authenticated protocol. `once` performs one live cycle and exits; `run` stays in the foreground and polls for two allowlisted tasks: status refresh and inventory refresh. Neither agent executes a supplied shell command or arbitrary payload.
+Both agents use the same authenticated protocol. `once` performs one live cycle and exits; the cross-platform `run` command stays in the foreground while the native Windows agent runs from the notification area. Both poll for two allowlisted tasks: status refresh and inventory refresh. The native agent also retries approved remote-provider provisioning every 15 minutes. Neither agent executes a supplied shell command or arbitrary payload.
 
 Platform program and state locations are documented in [agent/INSTALL_PATHS.md](agent/INSTALL_PATHS.md). The repository-local `.agent-data` path is ignored by Git.
+
+## Remote support
+
+- **RustDesk Server OSS 1.1.15** is the primary provider. OpsPilot opens the native RustDesk client with the self-hosted server key and supplies the endpoint's encrypted-at-rest permanent password through RustDesk's supported connection-link parameter.
+- **Windows Remote Desktop** is the secondary LAN fallback. The agent reports it ready only when RDP is enabled, Network Level Authentication is required, and the configured port is listening. OpsPilot downloads a credential-prompting `.rdp` profile without drive, printer, COM-port, or smart-card redirection.
+- The endpoint downloads the pinned RustDesk client only through its authenticated OpsPilot agent channel. RustDesk 1.4.9 is SHA-256 verified while the control-plane image is built. OpsPilot does not enable RDP or change endpoint firewall policy.
+- Provider identifiers, readiness, versions, and verification time are stored per device. RustDesk passwords use AES-256-GCM under a key derived from `SESSION_SECRET` and are never returned in list/detail payloads.
+
+The Docker stack publishes RustDesk on TCP 21115–21119 plus UDP 21116. Set `RUSTDESK_ID_SERVER` and `RUSTDESK_RELAY_SERVER` to LAN-reachable addresses before enrolling endpoints. RDP fallback profiles use the endpoint's authenticated inventory address and require authorized Windows credentials.
+
+RustDesk server and client are AGPL-3.0; review the applicable license and source-distribution obligations before distributing a modified or hosted offering.
 
 ## Architecture
 
@@ -80,6 +108,8 @@ Important surfaces:
 - `app/api/agent/windows/download`: creates an authenticated, personalized zero-touch Windows executable.
 - `app/api/agent/check-in`: accepts authenticated telemetry and evaluates live thresholds.
 - `app/api/agent/tasks`: exposes queued allowlisted tasks to the enrolled device only.
+- `app/api/agent/remote-support`: provides authenticated provider configuration, packages, and readiness reporting.
+- `app/api/remote/session`: authorizes and audits operator remote-session requests.
 - `app/api/actions/route.ts`: validates and authorizes operator actions.
 - `agent/windows`: native self-contained Windows x64 endpoint agent source.
 - `agent/opspilot-agent.mjs`: foreground cross-platform repository agent.
@@ -91,8 +121,9 @@ Important surfaces:
 - Session tokens and agent secrets are stored as hashes; the scoped enrollment token is embedded into the personalized executable and defaults to one endpoint install.
 - Session cookies are HTTP-only and SameSite Strict, and become Secure in production.
 - Mutations validate origin, payload, tenant, organization scope, and permission.
-- Agent tasks are hard-coded to `refresh-agent` and `inventory-refresh`; there is no remote shell, script runner, file browser, service control, process control, credential collection, or persistence installer.
-- The agent does not create a Windows service, scheduled task, launch daemon, startup item, or background installation.
+- Agent tasks are hard-coded to `refresh-agent` and `inventory-refresh`; OpsPilot exposes remote desktop through the two configured providers but no arbitrary shell, script runner, process control, or supplied command payload.
+- The native OpsPilot monitor runs in the Windows notification area. Enrollment installs RustDesk as a managed Windows service after elevation and only inspects the built-in RDP/NLA state.
+- Starting a remote session requires the `remote.control` permission, organization scope, a ready provider mapping, and same-origin validation; every request is audited.
 - Normal application routes do not expose audit edit or delete operations.
 - `.env`, agent state, and credentials are ignored by Git.
 
@@ -112,6 +143,8 @@ Use HTTPS and set `AGENT_SERVER_URL` to an address reachable by endpoints before
 | `npm test` | Run the Vitest domain/security suite |
 | `npm run test:e2e` | Run the root → enroll → check-in → task → audit workflow |
 | `npm run check` | Typecheck, lint, unit tests, and production build |
+| `.\scripts\docker-setup.ps1` | One-command Windows Docker setup and health verification |
+| `./scripts/docker-setup.sh` | One-command Linux/Unraid Docker setup and health verification |
 | `npm run docker:up` | Build and start the persistent Docker stack |
 | `npm run docker:down` | Stop the Docker stack without deleting data |
 | `npm run agent:build:windows` | Build the self-contained Windows x64 endpoint executable |
@@ -120,8 +153,8 @@ Use HTTPS and set `AGENT_SERVER_URL` to an address reachable by endpoints before
 ## Current live-test limits
 
 - SQLite and in-process rate limiting target one control-plane instance.
-- The agent must remain open in a foreground terminal; service installation is intentionally absent.
+- The OpsPilot monitor must remain running in the Windows notification area; RustDesk persists as its own Windows service and RDP remains managed by Windows.
 - The Windows executable is an unsigned live-test build, so Windows SmartScreen may require an explicit allow action until a trusted code-signing certificate is configured.
 - Software inventory is intentionally minimal; the Windows executable reports its own runtime plus native host telemetry.
-- Patch discovery and installation, remote support, command execution, and endpoint persistence are not implemented.
+- Patch discovery/installation and arbitrary command execution are not implemented.
 - Notifications are in-app only. Production use needs managed persistence, shared rate limiting, TLS, MFA/SSO, credential rotation, backups, replay protection, signed agent releases, observability, and independent security testing.
