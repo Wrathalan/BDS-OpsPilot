@@ -2,9 +2,21 @@
 
 OpsPilot is a local-first RMM control plane for authenticated endpoint enrollment, real host telemetry, scoped policy evaluation, threshold alerts, an allowlisted agent task queue, reporting, and privileged-action auditing.
 
+- Repository: [Wrathalan/BDS-OpsPilot](https://github.com/Wrathalan/BDS-OpsPilot)
+- Current live-testing branch: `agent/live-docker-agent` ([draft PR #1](https://github.com/Wrathalan/BDS-OpsPilot/pull/1))
+
+OpsPilot is ready for authorized LAN environment testing. It is not hardened for public internet exposure; review the production limitations and security boundaries below before expanding access.
+
 ## Docker quick start
 
 Requirement: Docker Engine or Docker Desktop with Compose v2.
+
+Clone the current live-testing build:
+
+```console
+git clone --branch agent/live-docker-agent https://github.com/Wrathalan/BDS-OpsPilot.git
+cd BDS-OpsPilot
+```
 
 Windows:
 
@@ -38,6 +50,24 @@ docker compose down
 ```
 
 `docker compose down` preserves the named data volume. Use `docker compose down --volumes` only when you intentionally want to delete all control-plane data.
+
+## Update an existing installation
+
+Pull the latest commit for the checked-out branch, then rerun the same setup command. The scripts rebuild the changed image and retain `.env`, the administrator account, enrolled endpoint data, and the RustDesk server identity.
+
+Windows:
+
+```powershell
+git pull --ff-only
+.\scripts\docker-setup.ps1
+```
+
+Linux or Unraid:
+
+```bash
+git pull --ff-only
+./scripts/docker-setup.sh
+```
 
 ## Native development
 
