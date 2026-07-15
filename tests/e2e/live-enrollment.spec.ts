@@ -48,9 +48,9 @@ test("root enrolls a live agent and completes an allowlisted task", async ({ pag
     await page.getByLabel("Organization name").fill(orgName);
     await page.getByLabel("URL slug").fill(`live-test-${suffix}`);
     await page.getByRole("button", { name: "Create organization" }).click();
-    const orgCard = page.locator("article").filter({ hasText: orgName });
-    await expect(orgCard).toBeVisible();
-    await orgCard.getByRole("button", { name: "Add site" }).click();
+    const orgRow = page.getByRole("row", { name: new RegExp(orgName, "i") });
+    await expect(orgRow).toBeVisible();
+    await orgRow.getByRole("button", { name: "Add site" }).click();
     await page.getByLabel("Location name").fill(locationName);
     await page.getByRole("button", { name: "Add location" }).click();
     await page.getByRole("link", { name: "Devices" }).click();

@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "db:e2e:reset": "node scripts/reset-e2e-database.mjs",
     "test:e2e:windows-agent": "npm run agent:build:windows && playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern playwright-report --ignore-pattern test-results",
