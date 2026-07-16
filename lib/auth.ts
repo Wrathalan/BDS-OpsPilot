@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "./db";
 import { loadUser, type SessionUser } from "./rbac";
+import { shouldUseSecureSessionCookie } from "./session-cookie";
 
 export const SESSION_COOKIE = "opspilot_session";
 const sessionDays = 1;
@@ -13,7 +14,7 @@ export async function createSession(userId: string) {
   const expiresAt = new Date(Date.now() + sessionDays * 86_400_000);
   await db.session.create({ data: { userId, tokenHash: tokenHash(token), expiresAt } });
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", expires: expiresAt });
+  store.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "strict", secure: shouldUseSecureSessionCookie(), path: "/", expires: expiresAt });
 }
 
 export async function clearSession() {
