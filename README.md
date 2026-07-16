@@ -149,7 +149,7 @@ Important surfaces:
 
 - User passwords use bcrypt with cost 12.
 - Session tokens and agent secrets are stored as hashes; the scoped enrollment token is embedded into the personalized executable and defaults to one endpoint install.
-- Session cookies are HTTP-only and SameSite Strict, and become Secure in production.
+- Session cookies are HTTP-only and SameSite Strict. The Secure flag follows the `APP_URL` protocol, and `SESSION_COOKIE_SECURE=true` can force it when HTTPS terminates at a reverse proxy.
 - Mutations validate origin, payload, tenant, organization scope, and permission.
 - Agent tasks are hard-coded to `refresh-agent` and `inventory-refresh`; OpsPilot exposes remote desktop through the two configured providers but no arbitrary shell, script runner, process control, or supplied command payload.
 - The native OpsPilot monitor runs in the Windows notification area. Enrollment installs RustDesk as a managed Windows service after elevation and only inspects the built-in RDP/NLA state.
