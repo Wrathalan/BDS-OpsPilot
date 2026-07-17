@@ -45,7 +45,7 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
           <span className="nav-label nav-label-second">Control</span>
           {navItems.slice(8).map(([label, href, Icon]) => <Link key={href} href={href} className={pathname === href ? "active" : ""} onClick={() => setMobileOpen(false)}><Icon size={17} /><span>{label}</span></Link>)}
         </nav>
-        <div className="sidebar-foot"><div className="gateway-status"><span className="status-dot status-dot-online" /><span><strong>Agent gateway</strong><small>Enrollment available</small></span></div><button onClick={logout} className="profile-button"><span className="user-avatar">{user.name.split(" ").map((part) => part[0]).join("")}</span><span><strong>{user.name}</strong><small>{user.roleName}</small></span><LogOut size={14} /></button></div>
+        <div className="sidebar-foot"><button onClick={logout} className="profile-button"><span className="user-avatar">{user.name.split(" ").map((part) => part[0]).join("")}</span><span><strong>{user.name}</strong><small>{user.roleName}</small></span><LogOut size={14} /></button></div>
       </aside>
       {mobileOpen && <button className="sidebar-scrim" onClick={() => setMobileOpen(false)} aria-label="Close navigation" />}
       <div className="app-main">
