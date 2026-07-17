@@ -160,7 +160,7 @@ try {
         exit 0
     }
 
-    & docker compose --env-file $EnvPath up --build --detach --wait --wait-timeout $WaitTimeoutSeconds
+    & docker compose --env-file $EnvPath up --build --detach --remove-orphans --wait --wait-timeout $WaitTimeoutSeconds
     if ($LASTEXITCODE -ne 0) {
         throw "Docker deployment did not become healthy within $WaitTimeoutSeconds seconds."
     }

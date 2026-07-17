@@ -116,7 +116,7 @@ if [ "${OPSPILOT_CONFIG_ONLY:-0}" = "1" ]; then
   exit 0
 fi
 
-docker compose --env-file "$ENV_FILE" up --build --detach --wait --wait-timeout "$WAIT_TIMEOUT"
+docker compose --env-file "$ENV_FILE" up --build --detach --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
 docker compose --env-file "$ENV_FILE" ps
 
 APP_URL=$(get_env APP_URL)
