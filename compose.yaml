@@ -1,28 +1,4 @@
 services:
-  rustdesk-hbbs:
-    image: rustdesk/rustdesk-server:1.1.15
-    container_name: opspilot-rustdesk-hbbs
-    restart: unless-stopped
-    command: ["hbbs", "-r", "${RUSTDESK_RELAY_SERVER:-127.0.0.1:21117}"]
-    ports:
-      - "21115:21115/tcp"
-      - "21116:21116/tcp"
-      - "21116:21116/udp"
-      - "21118:21118/tcp"
-    volumes:
-      - rustdesk_data:/root
-
-  rustdesk-hbbr:
-    image: rustdesk/rustdesk-server:1.1.15
-    container_name: opspilot-rustdesk-hbbr
-    restart: unless-stopped
-    command: ["hbbr"]
-    ports:
-      - "21117:21117/tcp"
-      - "21119:21119/tcp"
-    volumes:
-      - rustdesk_data:/root
-
   opspilot:
     container_name: opspilot-rmm
     build:
@@ -32,6 +8,12 @@ services:
     restart: unless-stopped
     ports:
       - "${OPSPILOT_PORT:-3000}:3000"
+      - "21115:21115/tcp"
+      - "21116:21116/tcp"
+      - "21116:21116/udp"
+      - "21117:21117/tcp"
+      - "21118:21118/tcp"
+      - "21119:21119/tcp"
     environment:
       DATABASE_URL: "file:/data/opspilot.db"
       SESSION_SECRET: "${SESSION_SECRET:?Set SESSION_SECRET in .env}"
@@ -52,13 +34,16 @@ services:
       RDP_FALLBACK_ENABLED: "${RDP_FALLBACK_ENABLED:-true}"
     volumes:
       - opspilot_data:/data
-      - rustdesk_data:/rustdesk:ro
+      - rustdesk_data:/rustdesk
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - SETGID
+      - SETUID
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "scripts/container-healthcheck.mjs"]
       interval: 15s
       timeout: 5s
       retries: 8

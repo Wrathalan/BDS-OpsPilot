@@ -30,7 +30,7 @@ Linux or Unraid:
 ./scripts/docker-setup.sh
 ```
 
-That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, starts OpsPilot plus the RustDesk ID and relay services, and waits for the application health check. It is safe to rerun: an existing `.env`, administrator password, database volume, and RustDesk server identity are retained.
+That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, and starts the self-contained `opspilot-rmm` container. The web console, RustDesk ID server, and RustDesk relay share that one container and lifecycle. Setup waits until all three processes are healthy. It is safe to rerun: an existing `.env`, administrator password, database volume, and RustDesk server identity are retained.
 
 The generated sign-in details and application URL are printed when the first setup finishes. They remain available in the local `.env`, which is ignored by Git. To override automatic LAN detection, provide the host address explicitly:
 
@@ -42,18 +42,18 @@ The generated sign-in details and application URL are printed when the first set
 OPSPILOT_HOST=192.168.2.107 ./scripts/docker-setup.sh
 ```
 
-The container health check verifies both the web server and database. SQLite is persisted at `/data/opspilot.db` in the named volume `opspilot-rmm-data`.
+The container health check verifies the web server, database, RustDesk ID server, and RustDesk relay. SQLite is persisted at `/data/opspilot.db` in `opspilot-rmm-data`; the RustDesk identity remains in `opspilot-rustdesk-data`. Both volumes are mounted into the single `opspilot-rmm` container.
 
 ```powershell
 docker compose logs -f opspilot
 docker compose down
 ```
 
-`docker compose down` preserves the named data volume. Use `docker compose down --volumes` only when you intentionally want to delete all control-plane data.
+`docker compose down` preserves both named data volumes. Use `docker compose down --volumes` only when you intentionally want to delete all control-plane data and the RustDesk server identity.
 
 ## Update an existing installation
 
-Pull the latest commit for the checked-out branch, then rerun the same setup command. The scripts rebuild the changed image and retain `.env`, the administrator account, enrolled endpoint data, and the RustDesk server identity.
+Pull the latest commit for the checked-out branch, then rerun the same setup command. The scripts rebuild the changed image, remove obsolete multi-container services, and retain `.env`, the administrator account, enrolled endpoint data, and the RustDesk server identity.
 
 Windows:
 
@@ -118,7 +118,7 @@ Platform program and state locations are documented in [agent/INSTALL_PATHS.md](
 - The endpoint downloads the pinned RustDesk client only through its authenticated OpsPilot agent channel. RustDesk 1.4.9 is SHA-256 verified while the control-plane image is built. OpsPilot does not enable RDP or change endpoint firewall policy.
 - Provider identifiers, readiness, versions, and verification time are stored per device. RustDesk passwords use AES-256-GCM under a key derived from `SESSION_SECRET` and are never returned in list/detail payloads.
 
-The Docker stack publishes RustDesk on TCP 21115–21119 plus UDP 21116. Set `RUSTDESK_ID_SERVER` and `RUSTDESK_RELAY_SERVER` to LAN-reachable addresses before enrolling endpoints. RDP fallback profiles use the endpoint's authenticated inventory address and require authorized Windows credentials.
+The self-contained OpsPilot container publishes the console port plus RustDesk on TCP 21115–21119 and UDP 21116. Set `RUSTDESK_ID_SERVER` and `RUSTDESK_RELAY_SERVER` to LAN-reachable addresses before enrolling endpoints. RDP fallback profiles use the endpoint's authenticated inventory address and require authorized Windows credentials.
 
 RustDesk server and client are AGPL-3.0; review the applicable license and source-distribution obligations before distributing a modified or hosted offering.
 
@@ -130,7 +130,7 @@ RustDesk server and client are AGPL-3.0; review the applicable license and sourc
 - One-time enrollment tokens and separately revocable per-device agent credentials.
 - Server-side RBAC and organization scoping.
 - Database-backed telemetry, alert deduplication/recovery, task runs, and append-only audit workflows.
-- Docker health checking and a persistent named volume.
+- A single self-contained Docker container with health checking and persistent control-plane and RustDesk identity volumes.
 
 Important surfaces:
 
