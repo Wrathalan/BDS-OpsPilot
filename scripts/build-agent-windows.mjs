@@ -8,10 +8,17 @@ const project = path.join(root, "agent", "windows", "OpsPilot.Agent.csproj");
 const output = path.join(root, "dist", "windows-agent");
 const publicOutput = path.join(root, "public", "downloads");
 const fileName = "opspilot-agent-windows-x64.exe";
+const buildEnvironment = {
+  ...process.env,
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1",
+  DOTNET_NOLOGO: "true",
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1",
+  NUGET_XMLDOC_MODE: "skip",
+};
 
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
-const publish = spawnSync("dotnet", ["publish", project, "-c", "Release", "-r", "win-x64", "--self-contained", "true", "-o", output, "-p:PublishSingleFile=true", "-p:PublishTrimmed=false", "-p:IncludeNativeLibrariesForSelfExtract=true"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
+const publish = spawnSync("dotnet", ["publish", project, "-c", "Release", "-r", "win-x64", "--self-contained", "true", "-o", output, "-p:PublishSingleFile=true", "-p:PublishTrimmed=false", "-p:IncludeNativeLibrariesForSelfExtract=true"], { cwd: root, env: buildEnvironment, stdio: "inherit", shell: process.platform === "win32" });
 if (publish.status !== 0) process.exit(publish.status ?? 1);
 
 const executable = path.join(output, fileName);

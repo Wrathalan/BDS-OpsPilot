@@ -141,7 +141,7 @@ async function processTasks(config) {
     let output = "Authenticated live agent check-in completed.";
     let failureReason;
     try {
-      if (!["refresh-agent", "inventory-refresh"].includes(task.action)) throw new Error("Action is not in the live-test allowlist.");
+      if (!["refresh-agent", "inventory-refresh"].includes(task.action)) throw new Error("Action is not in the approved agent allowlist.");
       await sendCheckIn(config);
     } catch (error) { status = "failed"; failureReason = error.message; output = ""; }
     await request(config.server, `/api/agent/tasks/${task.id}/complete`, { method: "POST", headers: { Authorization: `Bearer ${config.agentSecret}` }, body: JSON.stringify({ status, output, failureReason }) });
@@ -170,7 +170,7 @@ try {
   else if (command === "once") await once();
   else if (command === "run") await run();
   else {
-    console.log("OpsPilot foreground live-test agent\n\nCommands:\n  enroll --server <url> --token <token> [--data-dir <path>]\n  once [--data-dir <path>]\n  run [--data-dir <path>]\n\nThe agent has no arbitrary command runner and installs no background persistence.");
+    console.log("OpsPilot foreground agent\n\nCommands:\n  enroll --server <url> --token <token> [--data-dir <path>]\n  once [--data-dir <path>]\n  run [--data-dir <path>]\n\nThe agent has no arbitrary command runner and installs no background persistence.");
     process.exitCode = command ? 1 : 0;
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; }

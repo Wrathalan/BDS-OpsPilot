@@ -3,23 +3,23 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { clientAddress, loginRateLimiter } from "@/lib/login-rate-limit";
+import { isTrustedBrowserOrigin } from "@/lib/request-origin";
 
 const schema = z.object({ identifier: z.string().min(1).max(160), password: z.string().min(8).max(200) });
-const attempts = new Map<string, { count: number; resetAt: number }>();
-
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
-  const current = attempts.get(ip);
-  if (current && current.resetAt > Date.now() && current.count >= 8) return NextResponse.json({ error: "Too many sign-in attempts. Try again in 15 minutes." }, { status: 429 });
+  if (!isTrustedBrowserOrigin(request)) return NextResponse.json({ error: "Request origin was not accepted." }, { status: 403 });
+  const ip = clientAddress(request);
   try {
     const input = schema.parse(await request.json());
     const identifier = input.identifier.toLowerCase();
+    if (loginRateLimiter.isBlocked(ip, identifier)) return NextResponse.json({ error: "Too many sign-in attempts. Try again in 15 minutes." }, { status: 429 });
     const user = await db.user.findFirst({ where: { active: true, OR: [{ username: identifier }, { email: identifier }] } });
     if (!user || !(await compare(input.password, user.passwordHash))) {
-      attempts.set(ip, { count: (current?.resetAt ?? 0) > Date.now() ? current!.count + 1 : 1, resetAt: Date.now() + 15 * 60_000 });
+      loginRateLimiter.recordFailure(ip, identifier);
       return NextResponse.json({ error: "Email or password is incorrect." }, { status: 401 });
     }
-    attempts.delete(ip);
+    loginRateLimiter.clear(ip, identifier);
     await createSession(user.id);
     await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await db.auditEvent.create({ data: { tenantId: user.tenantId, actorId: user.id, action: "user.login", resourceType: "Session", resourceId: user.id, requestContext: ip, afterSummary: JSON.stringify({ method: "password", success: true }) } });

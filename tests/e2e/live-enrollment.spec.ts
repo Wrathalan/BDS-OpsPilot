@@ -76,15 +76,20 @@ test("root enrolls a live agent and completes an allowlisted task", async ({ pag
   expect(agentDownload.headers()["x-opspilot-sha256"]).toMatch(/^[a-f0-9]{64}$/);
   const personalizedBytes = await agentDownload.body();
   expect(personalizedBytes.length).toBeGreaterThan(50_000_000);
-  expect(personalizedBytes.subarray(-"OPSPILOT_ENROLLMENT_V1".length).toString("ascii")).toBe("OPSPILOT_ENROLLMENT_V1");
+  const enrollmentMarker = "OPSPILOT_ENROLLMENT_V1";
+  expect(personalizedBytes.subarray(-enrollmentMarker.length).toString("ascii")).toBe(enrollmentMarker);
+  const payloadLengthOffset = personalizedBytes.length - enrollmentMarker.length - 4;
+  const payloadLength = personalizedBytes.readUInt32LE(payloadLengthOffset);
+  const embeddedPayload = JSON.parse(personalizedBytes.subarray(payloadLengthOffset - payloadLength, payloadLengthOffset).toString("utf8")) as { server: string; token: string };
+  expect(embeddedPayload).toEqual({ server: expect.stringMatching(/^https?:\/\//), token: await enrollmentToken });
   await writeFile(personalizedAgent, personalizedBytes);
 
   const agentScript = path.join(process.cwd(), "agent", "opspilot-agent.mjs");
-  const useWindowsExecutable = process.platform === "win32";
+  const useWindowsExecutable = process.platform === "win32" && process.env.OPSPILOT_E2E_RUN_ELEVATED_AGENT === "1";
   const runAgent = (agentArgs: string[]) => execFileAsync(useWindowsExecutable ? personalizedAgent : process.execPath, useWindowsExecutable ? agentArgs : [agentScript, ...agentArgs]);
   const enrolled = useWindowsExecutable
     ? await execFileAsync(personalizedAgent, [], { env: { ...process.env, OPSPILOT_DATA_DIR: agentDataDir, OPSPILOT_EXIT_AFTER_ENROLL: "1" } })
-    : await runAgent(["enroll", "--server", "http://127.0.0.1:3000", "--token", await enrollmentToken, "--data-dir", agentDataDir]);
+    : await runAgent(["enroll", "--server", embeddedPayload.server, "--token", await enrollmentToken, "--data-dir", agentDataDir]);
   expect(enrolled.stdout).toContain("Enrolled");
   if (useWindowsExecutable) expect(enrolled.stdout).toContain("Personalized enrollment package detected");
   const firstCheckIn = await runAgent(["once", "--data-dir", agentDataDir]);

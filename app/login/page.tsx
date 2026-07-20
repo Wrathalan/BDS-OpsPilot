@@ -32,7 +32,7 @@ export default async function LoginPage() {
             </div>
           </section>
         </div>
-        <footer className="login-footer"><span>OpsPilot RMM</span><span>Live-test endpoint operations console</span></footer>
+        <footer className="login-footer"><span>OpsPilot RMM</span><span>Self-hosted endpoint operations console</span></footer>
       </section>
     </main>
   );

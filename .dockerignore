@@ -6,6 +6,7 @@ coverage
 playwright-report
 test-results
 dist
+backups
 agent/windows/bin
 agent/windows/obj
 public/downloads/*.exe

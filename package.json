@@ -6,16 +6,17 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
+    "dev": "node scripts/run-private-cli.mjs next dev --hostname 127.0.0.1",
     "local": "npm run setup && npm run dev",
-    "build": "next build",
-    "start": "next start --hostname 0.0.0.0",
-    "setup": "prisma generate && npm run db:sync",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate",
+    "build": "node scripts/run-private-cli.mjs next build",
+    "start": "node scripts/run-private-cli.mjs next start --hostname 0.0.0.0",
+    "setup": "node scripts/run-private-cli.mjs prisma generate && npm run db:sync",
+    "db:migrate": "node scripts/run-private-cli.mjs prisma migrate dev",
+    "db:generate": "node scripts/run-private-cli.mjs prisma generate",
     "db:prepare": "node prisma/prepare-database.mjs",
-    "db:sync": "npm run db:prepare && prisma db push --skip-generate && npm run db:bootstrap",
+    "db:sync": "npm run db:prepare && node scripts/run-private-cli.mjs prisma db push --skip-generate && npm run db:bootstrap",
     "db:bootstrap": "node prisma/bootstrap.mjs",
+    "backup": "node scripts/create-backup.mjs",
     "agent:build:windows": "node scripts/build-agent-windows.mjs",
     "docker:up": "docker compose up --build -d --remove-orphans",
     "docker:down": "docker compose down --remove-orphans",
@@ -35,13 +36,11 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
-    "clsx": "^2.1.1",
     "lucide-react": "^1.24.0",
     "next": "^16.2.10",
     "prisma": "^6.19.3",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

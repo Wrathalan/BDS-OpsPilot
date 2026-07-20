@@ -122,6 +122,7 @@ try {
     if ($EnvWasCreated) {
         Copy-Item -LiteralPath (Join-Path $RepoRoot ".env.example") -Destination $EnvPath
     }
+    New-Item -ItemType Directory -Force -Path (Join-Path $RepoRoot "backups") | Out-Null
 
     $generatedPassword = $null
     $sessionSecret = Get-DotEnvValue -Path $EnvPath -Name "SESSION_SECRET"
@@ -163,6 +164,11 @@ try {
     & docker compose --env-file $EnvPath up --build --detach --remove-orphans --wait --wait-timeout $WaitTimeoutSeconds
     if ($LASTEXITCODE -ne 0) {
         throw "Docker deployment did not become healthy within $WaitTimeoutSeconds seconds."
+    }
+
+    & docker compose --env-file $EnvPath exec -T --user node opspilot node scripts/create-backup.mjs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker deployment became healthy, but its verified backup failed."
     }
 
     & docker compose --env-file $EnvPath ps

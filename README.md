@@ -1,11 +1,11 @@
 # OpsPilot RMM
 
-OpsPilot is a local-first RMM control plane for authenticated endpoint enrollment, real host telemetry, scoped policy evaluation, threshold alerts, an allowlisted agent task queue, reporting, and privileged-action auditing.
+OpsPilot is a self-hosted RMM control plane for authenticated endpoint enrollment, operational host metrics, scoped policy evaluation, threshold alerts, an allowlisted agent task queue, reporting, and privileged-action auditing.
 
 - Repository: [Wrathalan/BDS-OpsPilot](https://github.com/Wrathalan/BDS-OpsPilot)
-- Deployment branch: `main` ([live deployment merge](https://github.com/Wrathalan/BDS-OpsPilot/pull/1))
+- Deployment branch: `main`
 
-OpsPilot is ready for authorized LAN environment testing. It is not hardened for public internet exposure; review the production limitations and security boundaries below before expanding access.
+OpsPilot is production-ready for a private, single-node LAN deployment or for access through a properly configured HTTPS reverse proxy. It is intentionally not presented as safe for direct public-internet exposure; see the deployment boundaries below.
 
 ## Docker quick start
 
@@ -30,7 +30,7 @@ Linux or Unraid:
 ./scripts/docker-setup.sh
 ```
 
-That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, and starts the self-contained `opspilot-rmm` container. The web console, RustDesk ID server, and RustDesk relay share that one container and lifecycle. Setup waits until all three processes are healthy. It is safe to rerun: an existing `.env`, administrator password, database volume, and RustDesk server identity are retained.
+That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, and starts the self-contained `opspilot-rmm` container. The web console, RustDesk ID server, and RustDesk relay share that one container and lifecycle. Setup waits until all three processes are healthy, validates the production configuration, and writes a verified database-and-server-identity backup. It is safe to rerun: an existing `.env`, administrator password, database volume, and RustDesk server identity are retained.
 
 The generated sign-in details and application URL are printed when the first setup finishes. They remain available in the local `.env`, which is ignored by Git. To override automatic LAN detection, provide the host address explicitly:
 
@@ -42,7 +42,7 @@ The generated sign-in details and application URL are printed when the first set
 OPSPILOT_HOST=192.168.2.107 ./scripts/docker-setup.sh
 ```
 
-The container health check verifies the web server, database, RustDesk ID server, and RustDesk relay. SQLite is persisted at `/data/opspilot.db` in `opspilot-rmm-data`; the RustDesk identity remains in `opspilot-rustdesk-data`. Both volumes are mounted into the single `opspilot-rmm` container.
+The container health check verifies the web server, database, RustDesk ID server, and RustDesk relay. SQLite is persisted at `/data/opspilot.db` in `opspilot-rmm-data`; the RustDesk identity remains in `opspilot-rustdesk-data`. Both volumes are mounted into the single `opspilot-rmm` container. The root filesystem is read-only, application and RustDesk processes run without root privileges, Linux capabilities are restricted, process count is capped, and container logs rotate.
 
 ```powershell
 docker compose logs -f opspilot
@@ -50,6 +50,16 @@ docker compose down
 ```
 
 `docker compose down` preserves both named data volumes. Use `docker compose down --volumes` only when you intentionally want to delete all control-plane data and the RustDesk server identity.
+
+## Backups and recovery
+
+Every successful one-command deployment writes a consistent SQLite snapshot, the RustDesk server identity, SHA-256 checksums, and a manifest under `./backups/<timestamp>/`. Backups older than `BACKUP_RETENTION_DAYS` are removed; the default is 30 days. Create an additional backup at any time:
+
+```console
+docker compose exec -T --user node opspilot node scripts/create-backup.mjs
+```
+
+Copy `backups/` to storage outside this Docker host on a schedule appropriate to the environment. To recover, stop the stack, verify the manifest checksums, restore `opspilot.db` to the `opspilot-rmm-data` volume and both `id_ed25519` files to `opspilot-rustdesk-data`, then start the stack and confirm its health check. Do not restore only one of the database and RustDesk identity when remote support continuity matters.
 
 ## Update an existing installation
 
@@ -159,6 +169,14 @@ Important surfaces:
 
 Use HTTPS and set `AGENT_SERVER_URL` to an address reachable by endpoints before testing across machines; `APP_URL` remains the browser/control-plane origin. Treat an unused personalized executable as an enrollment credential, restrict the endpoint state-directory ACL, rotate any disclosed credential, and use test systems you are authorized to monitor.
 
+## Privacy and outbound traffic
+
+OpsPilot includes no product analytics, advertising identifiers, third-party browser beacons, or external crash reporting. Required endpoint health metrics stay in the configured OpsPilot database. Browser policy restricts connections, forms, images, scripts, and other active content to the same self-hosted origin.
+
+Next.js, Prisma, the .NET CLI, and npm telemetry, checkpoints, audit submission, funding output, and update notices are explicitly disabled during builds and at runtime. The Windows agent also disables RustDesk automatic updates, LAN discovery, and remote configuration changes. No application runtime component initiates calls to an analytics, checkpoint, update, advertising, or crash-reporting service. The Docker service uses a standard bridge so its published console and RustDesk ports remain reachable; deployments that require blanket network egress filtering should enforce that policy at the Docker host or perimeter firewall. Image builds still require outbound access to retrieve pinned base images, npm/NuGet packages, and the checksum-pinned RustDesk client.
+
+Use an HTTPS reverse proxy for any access beyond a trusted private LAN. The proxy must preserve the original `Host`, `Origin`, and client address headers, and `APP_URL` and `AGENT_SERVER_URL` must match the externally reachable HTTPS origin. Set `SESSION_COOKIE_SECURE=true` when TLS is terminated upstream.
+
 ## Commands
 
 | Command | Purpose |
@@ -177,14 +195,17 @@ Use HTTPS and set `AGENT_SERVER_URL` to an address reachable by endpoints before
 | `./scripts/docker-setup.sh` | One-command Linux/Unraid Docker setup and health verification |
 | `npm run docker:up` | Build and start the persistent Docker stack |
 | `npm run docker:down` | Stop the Docker stack without deleting data |
+| `npm run backup` | Create a verified SQLite and RustDesk identity backup inside the container |
 | `npm run agent:build:windows` | Build the self-contained Windows x64 endpoint executable |
-| `npm run test:e2e:windows-agent` | Build and exercise the native executable through enrollment and task completion |
+| `npm run test:e2e:windows-agent` | Build and validate the native executable, then exercise enrollment and task completion |
 
-## Current live-test limits
+The Windows E2E command always builds and validates the personalized PE payload, then exercises the full enrollment protocol. Because the production executable correctly requests administrator rights for RustDesk service provisioning, set `OPSPILOT_E2E_RUN_ELEVATED_AGENT=1` only when the test shell is already elevated and native execution is desired.
+
+## Production scope and remaining boundaries
 
 - SQLite and in-process rate limiting target one control-plane instance.
 - The OpsPilot monitor must remain running in the Windows notification area; RustDesk persists as its own Windows service and RDP remains managed by Windows.
-- The Windows executable is an unsigned live-test build, so Windows SmartScreen may require an explicit allow action until a trusted code-signing certificate is configured.
+- The Windows executable is unsigned, so Windows SmartScreen may require an explicit allow action until a trusted code-signing certificate is configured.
 - Software inventory is intentionally minimal; the Windows executable reports its own runtime plus native host telemetry.
 - Patch discovery/installation and arbitrary command execution are not implemented.
-- Notifications are in-app only. Production use needs managed persistence, shared rate limiting, TLS, MFA/SSO, credential rotation, backups, replay protection, signed agent releases, observability, and independent security testing.
+- Notifications are in-app only. Public-internet or multi-node operation still requires TLS, MFA/SSO, shared rate limiting, centralized secrets and persistence, signed agent releases, independent security review, and an environment-specific disaster-recovery plan.

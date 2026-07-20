@@ -7,15 +7,13 @@ import { hashAgentSecret } from "@/lib/agent-auth";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assertOrganization, assertPermission, AuthorizationError } from "@/lib/rbac";
+import { isTrustedBrowserOrigin } from "@/lib/request-origin";
 
 const schema = z.object({ token: z.string().min(32).max(180) });
 const marker = Buffer.from("OPSPILOT_ENROLLMENT_V1", "ascii");
 
 function validateOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return;
-  const expected = new URL(process.env.APP_URL ?? request.url).origin;
-  if (origin !== expected && origin !== "http://localhost:3000") throw new AuthorizationError("Request origin was not accepted.");
+  if (!isTrustedBrowserOrigin(request)) throw new AuthorizationError("Request origin was not accepted.");
 }
 
 export async function POST(request: Request) {

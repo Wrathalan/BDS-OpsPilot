@@ -4,15 +4,12 @@ import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assertOrganization, assertPermission, AuthorizationError } from "@/lib/rbac";
 import { createRustDeskDeepLink, decryptRemoteSecret, rustDeskPublicKey } from "@/lib/remote-support";
+import { isTrustedBrowserOrigin } from "@/lib/request-origin";
 
 const schema = z.object({ deviceId: z.string().cuid(), provider: z.enum(["rustdesk", "rdp"]) });
 
 function validateOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return;
-  const allowed = new Set([new URL(request.url).origin]);
-  if (process.env.APP_URL) allowed.add(new URL(process.env.APP_URL).origin);
-  if (!allowed.has(origin)) throw new AuthorizationError("Request origin was not accepted.");
+  if (!isTrustedBrowserOrigin(request)) throw new AuthorizationError("Request origin was not accepted.");
 }
 
 export async function POST(request: Request) {
