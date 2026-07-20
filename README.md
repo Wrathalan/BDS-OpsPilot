@@ -9,7 +9,7 @@ OpsPilot is production-ready for a private, single-node LAN deployment or for ac
 
 ## One-command initial setup
 
-Requirement: Docker Engine or Docker Desktop with Compose v2.
+Requirement: Docker Engine or Docker Desktop. Windows requires its Compose v2-or-newer plugin. On Linux and Unraid, setup uses an installed Compose v2-or-newer command when available; otherwise it downloads the official pinned Compose `v2.35.1` binary into the ignored repository-local `.opspilot/bin` directory and verifies its SHA-256 checksum before execution. It does not install a system package or change the Docker daemon.
 
 On a Linux or Unraid host with GitHub SSH access, initial setup and safe reruns use the same command:
 
@@ -81,14 +81,21 @@ docker compose logs -f opspilot
 docker compose down
 ```
 
+On Linux or Unraid, use the repository wrapper so operations also work when setup installed Compose locally:
+
+```bash
+./compose.sh logs -f opspilot
+./compose.sh down
+```
+
 `docker compose down` preserves both named data volumes. Use `docker compose down --volumes` only when you intentionally want to delete all control-plane data and the RustDesk server identity.
 
 ## Backups and recovery
 
 Every successful one-command deployment writes a consistent SQLite snapshot, the RustDesk server identity, SHA-256 checksums, and a manifest under `./backups/<timestamp>/`. Backups older than `BACKUP_RETENTION_DAYS` are removed; the default is 30 days. Create an additional backup at any time:
 
-```console
-docker compose exec -T --user node opspilot node scripts/create-backup.mjs
+```bash
+./compose.sh exec -T --user node opspilot node scripts/create-backup.mjs
 ```
 
 Copy `backups/` to storage outside this Docker host on a schedule appropriate to the environment. To recover, stop the stack, verify the manifest checksums, restore `opspilot.db` to the `opspilot-rmm-data` volume and both `id_ed25519` files to `opspilot-rustdesk-data`, then start the stack and confirm its health check. Do not restore only one of the database and RustDesk identity when remote support continuity matters.
@@ -211,7 +218,7 @@ Use HTTPS and set `AGENT_SERVER_URL` to an address reachable by endpoints before
 
 OpsPilot includes no product analytics, advertising identifiers, third-party browser beacons, or external crash reporting. Required endpoint health metrics stay in the configured OpsPilot database. Browser policy restricts connections, forms, images, scripts, and other active content to the same self-hosted origin.
 
-Next.js, Prisma, the .NET CLI, and npm telemetry, checkpoints, audit submission, funding output, and update notices are explicitly disabled during builds and at runtime. The Windows agent also disables RustDesk automatic updates, LAN discovery, and remote configuration changes. No application runtime component initiates calls to an analytics, checkpoint, update, advertising, or crash-reporting service. The Docker service uses a standard bridge so its published console and RustDesk ports remain reachable; deployments that require blanket network egress filtering should enforce that policy at the Docker host or perimeter firewall. Image builds still require outbound access to retrieve pinned base images, npm/NuGet packages, and the checksum-pinned RustDesk client.
+Next.js, Prisma, the .NET CLI, and npm telemetry, checkpoints, audit submission, funding output, and update notices are explicitly disabled during builds and at runtime. The Windows agent also disables RustDesk automatic updates, LAN discovery, and remote configuration changes. No application runtime component initiates calls to an analytics, checkpoint, update, advertising, or crash-reporting service. The Docker service uses a standard bridge so its published console and RustDesk ports remain reachable; deployments that require blanket network egress filtering should enforce that policy at the Docker host or perimeter firewall. Initial Linux setup may retrieve the pinned, checksum-verified Docker Compose binary from the official Docker Compose GitHub release when the host has no supported Compose command. Image builds still require outbound access to retrieve pinned base images, npm/NuGet packages, and the checksum-pinned RustDesk client.
 
 Use an HTTPS reverse proxy for any access beyond a trusted private LAN. The proxy must preserve the original `Host`, `Origin`, and client address headers, and `APP_URL` and `AGENT_SERVER_URL` must match the externally reachable HTTPS origin. Set `SESSION_COOKIE_SECURE=true` when TLS is terminated upstream.
 
@@ -231,6 +238,7 @@ Use an HTTPS reverse proxy for any access beyond a trusted private LAN. The prox
 | `npm run check` | Typecheck, lint, unit tests, and production build |
 | `.\setup.ps1` | Root-level one-command Windows Docker setup and health verification |
 | `./setup.sh` | Root-level one-command Linux/Unraid Docker setup and health verification |
+| `./compose.sh ...` | Run Compose through the host plugin, standalone command, or verified local binary |
 | `npm run docker:up` | Build and start the persistent Docker stack |
 | `npm run docker:down` | Stop the Docker stack without deleting data |
 | `npm run backup` | Create a verified SQLite and RustDesk identity backup inside the container |

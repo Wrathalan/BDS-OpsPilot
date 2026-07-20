@@ -5,6 +5,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 cd "$REPO_ROOT"
 
+. "$SCRIPT_DIR/compose-runtime.sh"
+
 ENV_FILE=${OPSPILOT_ENV_FILE:-.env}
 PORT=${OPSPILOT_PORT:-3000}
 WAIT_TIMEOUT=${OPSPILOT_WAIT_TIMEOUT:-900}
@@ -21,18 +23,7 @@ if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
   exit 1
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "Docker is not installed or is not available on PATH." >&2
-  exit 1
-fi
-if ! docker info --format '{{.ServerVersion}}' >/dev/null 2>&1; then
-  echo "Docker is installed, but the Docker daemon is not available." >&2
-  exit 1
-fi
-if ! docker compose version >/dev/null 2>&1; then
-  echo "Docker Compose v2 is required." >&2
-  exit 1
-fi
+opspilot_require_compose "$REPO_ROOT"
 
 generate_secret() {
   od -An -N "$1" -tx1 /dev/urandom | tr -d ' \n'
@@ -133,16 +124,16 @@ fi
 
 chmod 600 "$ENV_FILE"
 
-docker compose --env-file "$ENV_FILE" config --quiet
+opspilot_compose --env-file "$ENV_FILE" config --quiet
 
 if [ "${OPSPILOT_CONFIG_ONLY:-0}" = "1" ]; then
   echo "Docker configuration is valid: $ENV_FILE"
   exit 0
 fi
 
-docker compose --env-file "$ENV_FILE" up --build --detach --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
-docker compose --env-file "$ENV_FILE" exec -T --user node opspilot node scripts/create-backup.mjs
-docker compose --env-file "$ENV_FILE" ps
+opspilot_compose --env-file "$ENV_FILE" up --build --detach --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
+opspilot_compose --env-file "$ENV_FILE" exec -T --user node opspilot node scripts/create-backup.mjs
+opspilot_compose --env-file "$ENV_FILE" ps
 
 APP_URL=$(get_env APP_URL)
 ADMIN_USERNAME=$(get_env BOOTSTRAP_ADMIN_USERNAME)
