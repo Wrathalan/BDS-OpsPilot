@@ -11,11 +11,13 @@ OpsPilot is production-ready for a private, single-node LAN deployment or for ac
 
 Requirement: Docker Engine or Docker Desktop with Compose v2.
 
-On a Linux or Unraid host with GitHub SSH access, a completely fresh installation is one command:
+On a Linux or Unraid host with GitHub SSH access, initial setup and safe reruns use the same command:
 
 ```bash
-git clone git@github.com:Wrathalan/BDS-OpsPilot.git && cd BDS-OpsPilot && ./setup.sh
+(git -C BDS-OpsPilot rev-parse --is-inside-work-tree >/dev/null 2>&1 || git clone git@github.com:Wrathalan/BDS-OpsPilot.git BDS-OpsPilot) && git -C BDS-OpsPilot switch main && git -C BDS-OpsPilot pull --ff-only origin main && cd BDS-OpsPilot && ./setup.sh
 ```
+
+The command reuses an existing valid checkout, switches it to `main`, fast-forwards it from GitHub, and then runs the idempotent Docker setup. If `BDS-OpsPilot` exists but is not a Git checkout, it stops without deleting or overwriting that directory.
 
 Alternatively, clone the current main build first:
 
