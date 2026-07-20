@@ -11,6 +11,7 @@ services:
     stop_grace_period: 30s
     labels:
       net.unraid.docker.icon: "${APP_URL:-http://127.0.0.1:3000}/opspilot-docker-icon.png"
+      net.unraid.docker.webui: "${APP_URL:-http://127.0.0.1:3000}"
     ports:
       - "${OPSPILOT_PORT:-3000}:3000"
       - "21115:21115/tcp"
