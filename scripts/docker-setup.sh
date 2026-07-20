@@ -88,9 +88,16 @@ if [ -z "$SESSION_SECRET" ] || [ "$SESSION_SECRET" = "replace-with-at-least-32-r
 fi
 
 ADMIN_PASSWORD=$(get_env BOOTSTRAP_ADMIN_PASSWORD)
-if [ -z "$ADMIN_PASSWORD" ] || [ "${#ADMIN_PASSWORD}" -lt 12 ] || [ "$ADMIN_PASSWORD" = "Ethic0n1" ] || [ "$ADMIN_PASSWORD" = "change-this-before-starting" ]; then
-  GENERATED_PASSWORD=$(generate_secret 16)
-  set_env BOOTSTRAP_ADMIN_PASSWORD "$GENERATED_PASSWORD"
+ALLOW_KNOWN_ADMIN_PASSWORD=$(get_env ALLOW_KNOWN_ADMIN_PASSWORD)
+LEGACY_PASSWORD_ALLOWED=0
+if [ "$ALLOW_KNOWN_ADMIN_PASSWORD" = "1" ] && [ "$ADMIN_PASSWORD" = "Ethic0n1" ]; then
+  LEGACY_PASSWORD_ALLOWED=1
+fi
+if [ "$LEGACY_PASSWORD_ALLOWED" -eq 0 ]; then
+  if [ -z "$ADMIN_PASSWORD" ] || [ "${#ADMIN_PASSWORD}" -lt 12 ] || [ "$ADMIN_PASSWORD" = "Ethic0n1" ] || [ "$ADMIN_PASSWORD" = "change-this-before-starting" ]; then
+    GENERATED_PASSWORD=$(generate_secret 16)
+    set_env BOOTSTRAP_ADMIN_PASSWORD "$GENERATED_PASSWORD"
+  fi
 fi
 
 if [ "$ENV_WAS_CREATED" -eq 1 ] || [ -n "${OPSPILOT_HOST+x}" ] || [ -n "${OPSPILOT_PORT+x}" ] || [ -n "$PUBLIC_URL" ]; then

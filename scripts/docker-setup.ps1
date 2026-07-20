@@ -133,7 +133,9 @@ try {
     }
 
     $adminPassword = Get-DotEnvValue -Path $EnvPath -Name "BOOTSTRAP_ADMIN_PASSWORD"
-    if ([string]::IsNullOrWhiteSpace($adminPassword) -or $adminPassword.Length -lt 12 -or @("Ethic0n1", "change-this-before-starting") -contains $adminPassword) {
+    $allowKnownAdminPassword = (Get-DotEnvValue -Path $EnvPath -Name "ALLOW_KNOWN_ADMIN_PASSWORD") -eq "1"
+    $legacyPasswordAllowed = $allowKnownAdminPassword -and $adminPassword -ceq "Ethic0n1"
+    if (-not $legacyPasswordAllowed -and ([string]::IsNullOrWhiteSpace($adminPassword) -or $adminPassword.Length -lt 12 -or @("Ethic0n1", "change-this-before-starting") -contains $adminPassword)) {
         $generatedPassword = New-HexSecret -ByteCount 16
         Set-DotEnvValue -Path $EnvPath -Name "BOOTSTRAP_ADMIN_PASSWORD" -Value $generatedPassword
     }
