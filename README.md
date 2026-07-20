@@ -7,11 +7,17 @@ OpsPilot is a self-hosted RMM control plane for authenticated endpoint enrollmen
 
 OpsPilot is production-ready for a private, single-node LAN deployment or for access through a properly configured HTTPS reverse proxy. It is intentionally not presented as safe for direct public-internet exposure; see the deployment boundaries below.
 
-## Docker quick start
+## One-command initial setup
 
 Requirement: Docker Engine or Docker Desktop with Compose v2.
 
-Clone the current main build:
+On a Linux or Unraid host with GitHub SSH access, a completely fresh installation is one command:
+
+```bash
+git clone git@github.com:Wrathalan/BDS-OpsPilot.git && cd BDS-OpsPilot && ./setup.sh
+```
+
+Alternatively, clone the current main build first:
 
 ```console
 git clone https://github.com/Wrathalan/BDS-OpsPilot.git
@@ -21,13 +27,13 @@ cd BDS-OpsPilot
 Windows:
 
 ```powershell
-.\scripts\docker-setup.ps1
+.\setup.ps1
 ```
 
 Linux or Unraid:
 
 ```bash
-./scripts/docker-setup.sh
+./setup.sh
 ```
 
 That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, and starts the self-contained `opspilot-rmm` container. The web console, RustDesk ID server, and RustDesk relay share that one container and lifecycle. Setup waits until all three processes are healthy, validates the production configuration, and writes a verified database-and-server-identity backup. It is safe to rerun: an existing strong administrator password, database volume, and RustDesk server identity are retained. Missing, known-development, or shorter-than-12-character bootstrap passwords are replaced with a generated 32-character value and existing administrator sessions are invalidated.
@@ -37,21 +43,21 @@ The generated sign-in details and application URL are printed when the first set
 For recovery of an installation that must retain the legacy root credential, set `ALLOW_KNOWN_ADMIN_PASSWORD=1` together with the previously established password in `.env`, then rerun setup. This compatibility exception is intentionally disabled by default and permits only that one legacy value; use it only on an access-restricted control plane because the credential is known and shorter than the normal production minimum.
 
 ```powershell
-.\scripts\docker-setup.ps1 -HostAddress 192.168.2.107
+.\setup.ps1 -HostAddress 192.168.2.107
 ```
 
 ```bash
-OPSPILOT_HOST=192.168.2.107 ./scripts/docker-setup.sh
+OPSPILOT_HOST=192.168.2.107 ./setup.sh
 ```
 
 For production HTTPS behind an existing reverse proxy, supply the externally reachable origin. Setup applies it to browser and agent links and enables Secure session cookies:
 
 ```powershell
-.\scripts\docker-setup.ps1 -HostAddress 192.168.2.107 -PublicUrl https://opspilot.example.internal
+.\setup.ps1 -HostAddress 192.168.2.107 -PublicUrl https://opspilot.example.internal
 ```
 
 ```bash
-OPSPILOT_HOST=192.168.2.107 OPSPILOT_PUBLIC_URL=https://opspilot.example.internal ./scripts/docker-setup.sh
+OPSPILOT_HOST=192.168.2.107 OPSPILOT_PUBLIC_URL=https://opspilot.example.internal ./setup.sh
 ```
 
 On an Unraid host already joined to Tailscale, a private tailnet-only HTTPS endpoint can be created without a public tunnel:
@@ -59,7 +65,7 @@ On an Unraid host already joined to Tailscale, a private tailnet-only HTTPS endp
 ```bash
 TAILSCALE_DNS=$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')
 tailscale serve --bg --yes 3000
-OPSPILOT_HOST=192.168.2.107 OPSPILOT_PUBLIC_URL="https://${TAILSCALE_DNS}" ./scripts/docker-setup.sh
+OPSPILOT_HOST=192.168.2.107 OPSPILOT_PUBLIC_URL="https://${TAILSCALE_DNS}" ./setup.sh
 ```
 
 Tailscale Serve access remains subject to tailnet policy. Every endpoint using that address must be able to resolve and reach the tailnet DNS name. Plain HTTP outside loopback requires the explicit `ALLOW_INSECURE_HTTP=1` compatibility flag and is not recommended for production enrollment.
@@ -93,14 +99,14 @@ Windows:
 
 ```powershell
 git pull --ff-only
-.\scripts\docker-setup.ps1
+.\setup.ps1
 ```
 
 Linux or Unraid:
 
 ```bash
 git pull --ff-only
-./scripts/docker-setup.sh
+./setup.sh
 ```
 
 ## Native development
@@ -221,8 +227,8 @@ Use an HTTPS reverse proxy for any access beyond a trusted private LAN. The prox
 | `npm test` | Run the Vitest domain/security suite |
 | `npm run test:e2e` | Run the root → enroll → check-in → task → audit workflow |
 | `npm run check` | Typecheck, lint, unit tests, and production build |
-| `.\scripts\docker-setup.ps1` | One-command Windows Docker setup and health verification |
-| `./scripts/docker-setup.sh` | One-command Linux/Unraid Docker setup and health verification |
+| `.\setup.ps1` | Root-level one-command Windows Docker setup and health verification |
+| `./setup.sh` | Root-level one-command Linux/Unraid Docker setup and health verification |
 | `npm run docker:up` | Build and start the persistent Docker stack |
 | `npm run docker:down` | Stop the Docker stack without deleting data |
 | `npm run backup` | Create a verified SQLite and RustDesk identity backup inside the container |
