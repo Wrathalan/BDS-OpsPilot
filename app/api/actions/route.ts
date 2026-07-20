@@ -8,6 +8,7 @@ import { canRunAutomation } from "@/lib/domain";
 import { clientAddress } from "@/lib/login-rate-limit";
 import { assertOrganization, assertPermission, AuthorizationError, type SessionUser } from "@/lib/rbac";
 import { isTrustedBrowserOrigin } from "@/lib/request-origin";
+import { hashTechnicianInviteToken, technicianInvitePrefix } from "@/lib/technician-invitations";
 
 const id = z.string().min(1).max(80);
 const optionalId = z.union([id, z.literal("")]).optional();
@@ -17,6 +18,8 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("createPolicy"), name: z.string().min(3).max(100), description: z.string().max(300), organizationId: optionalId, parentId: optionalId }),
   z.object({ action: z.literal("createEnrollmentToken"), organizationId: id, locationId: id, name: z.string().min(2).max(100), expiresInHours: z.coerce.number().int().min(1).max(168).default(24), maxUses: z.coerce.number().int().min(1).max(100).default(1) }),
   z.object({ action: z.literal("revokeEnrollmentToken"), tokenId: id }),
+  z.object({ action: z.literal("createTechnicianInvite"), email: z.string().email().max(160), name: z.string().min(2).max(100), roleKey: z.enum(["technician", "auditor"]).default("technician"), allOrganizations: z.boolean().default(false), organizationIds: z.array(id).max(100).default([]), expiresInHours: z.coerce.number().int().min(1).max(168).default(48) }),
+  z.object({ action: z.literal("revokeTechnicianInvite"), inviteId: id }),
   z.object({ action: z.literal("runAutomation"), deviceId: id, automationId: id, confirmed: z.boolean().optional() }),
   z.object({ action: z.literal("updateAlert"), alertId: id, status: z.enum(["acknowledged", "suppressed", "resolved"]), note: z.string().max(500).optional() }),
   z.object({ action: z.literal("updateTicket"), ticketId: id, status: z.enum(["new", "open", "waiting_on_user", "resolved", "closed"]), comment: z.string().max(1000).optional() }),
@@ -89,6 +92,38 @@ export async function POST(request: Request) {
       assertOrganization(user, token.organizationId);
       await db.enrollmentToken.update({ where: { id: token.id }, data: { revokedAt: new Date() } });
       await audit(user, request, "enrollment_token.revoked", "EnrollmentToken", token.id, token.organizationId, { revokedAt: token.revokedAt }, { revokedAt: new Date() });
+      return NextResponse.json({ ok: true });
+    }
+    if (input.action === "createTechnicianInvite") {
+      assertPermission(user, "tenant.manage");
+      const email = input.email.trim().toLowerCase();
+      const existingUser = await db.user.findFirst({ where: { tenantId: user.tenantId, email } });
+      if (existingUser) throw new Error("A user with this email address already exists.");
+      const role = await db.role.findFirst({ where: { tenantId: user.tenantId, systemKey: input.roleKey } });
+      if (!role) throw new Error("The selected role is not available.");
+      const organizationIds = [...new Set(input.organizationIds)];
+      if (!input.allOrganizations && !organizationIds.length) throw new Error("Select at least one organization or grant access to all organizations.");
+      if (organizationIds.length) {
+        const matchingOrganizations = await db.organization.count({ where: { tenantId: user.tenantId, id: { in: organizationIds } } });
+        if (matchingOrganizations !== organizationIds.length) throw new AuthorizationError("One or more selected organizations are outside this tenant.");
+      }
+      const plaintext = `${technicianInvitePrefix}${randomBytes(32).toString("base64url")}`;
+      const expiresAt = new Date(Date.now() + input.expiresInHours * 3_600_000);
+      const invite = await db.$transaction(async (tx) => {
+        await tx.technicianInvite.updateMany({ where: { tenantId: user.tenantId, email, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
+        return tx.technicianInvite.create({ data: { tenantId: user.tenantId, roleId: role.id, createdById: user.id, email, name: input.name.trim(), tokenHash: hashTechnicianInviteToken(plaintext), tokenPrefix: plaintext.slice(0, 20), allOrganizations: input.allOrganizations, expiresAt, organizationScopes: input.allOrganizations ? undefined : { create: organizationIds.map((organizationId) => ({ organizationId })) } } });
+      });
+      await audit(user, request, "technician_invite.created", "TechnicianInvite", invite.id, null, null, { email, role: role.systemKey, allOrganizations: invite.allOrganizations, organizationIds, expiresAt });
+      const invitationUrl = new URL(`/invite/${plaintext}`, process.env.APP_URL || "http://127.0.0.1:3000").toString();
+      return NextResponse.json({ ok: true, inviteId: invite.id, invitationUrl, expiresAt });
+    }
+    if (input.action === "revokeTechnicianInvite") {
+      assertPermission(user, "tenant.manage");
+      const invite = await db.technicianInvite.findFirst({ where: { id: input.inviteId, tenantId: user.tenantId } });
+      if (!invite) throw new Error("Technician invitation was not found.");
+      if (invite.acceptedAt) throw new Error("An accepted invitation cannot be revoked. Disable the user account instead.");
+      if (!invite.revokedAt) await db.technicianInvite.update({ where: { id: invite.id }, data: { revokedAt: new Date() } });
+      await audit(user, request, "technician_invite.revoked", "TechnicianInvite", invite.id, null, { revokedAt: invite.revokedAt }, { revokedAt: new Date() });
       return NextResponse.json({ ok: true });
     }
     if (input.action === "runAutomation") {

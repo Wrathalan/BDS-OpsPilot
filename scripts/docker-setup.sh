@@ -9,6 +9,7 @@ ENV_FILE=${OPSPILOT_ENV_FILE:-.env}
 PORT=${OPSPILOT_PORT:-3000}
 WAIT_TIMEOUT=${OPSPILOT_WAIT_TIMEOUT:-900}
 HOST_ADDRESS=${OPSPILOT_HOST:-}
+PUBLIC_URL=${OPSPILOT_PUBLIC_URL:-}
 ENV_WAS_CREATED=0
 GENERATED_PASSWORD=
 
@@ -87,12 +88,12 @@ if [ -z "$SESSION_SECRET" ] || [ "$SESSION_SECRET" = "replace-with-at-least-32-r
 fi
 
 ADMIN_PASSWORD=$(get_env BOOTSTRAP_ADMIN_PASSWORD)
-if [ -z "$ADMIN_PASSWORD" ] || [ "$ADMIN_PASSWORD" = "change-this-before-starting" ]; then
+if [ -z "$ADMIN_PASSWORD" ] || [ "${#ADMIN_PASSWORD}" -lt 12 ] || [ "$ADMIN_PASSWORD" = "Ethic0n1" ] || [ "$ADMIN_PASSWORD" = "change-this-before-starting" ]; then
   GENERATED_PASSWORD=$(generate_secret 16)
   set_env BOOTSTRAP_ADMIN_PASSWORD "$GENERATED_PASSWORD"
 fi
 
-if [ "$ENV_WAS_CREATED" -eq 1 ] || [ -n "${OPSPILOT_HOST+x}" ] || [ -n "${OPSPILOT_PORT+x}" ]; then
+if [ "$ENV_WAS_CREATED" -eq 1 ] || [ -n "${OPSPILOT_HOST+x}" ] || [ -n "${OPSPILOT_PORT+x}" ] || [ -n "$PUBLIC_URL" ]; then
   if [ -z "$HOST_ADDRESS" ]; then
     HOST_ADDRESS=$(detect_host)
   fi
@@ -105,8 +106,20 @@ if [ "$ENV_WAS_CREATED" -eq 1 ] || [ -n "${OPSPILOT_HOST+x}" ] || [ -n "${OPSPIL
   fi
 
   set_env OPSPILOT_PORT "$PORT"
-  set_env APP_URL "http://${HOST_ADDRESS}:${PORT}"
-  set_env AGENT_SERVER_URL "http://${HOST_ADDRESS}:${PORT}"
+  CONTROL_PLANE_URL="http://${HOST_ADDRESS}:${PORT}"
+  if [ -n "$PUBLIC_URL" ]; then
+    case "$PUBLIC_URL" in
+      https://*) CONTROL_PLANE_URL=${PUBLIC_URL%/} ;;
+      *) echo "OPSPILOT_PUBLIC_URL must be an absolute HTTPS URL." >&2; exit 1 ;;
+    esac
+  fi
+  set_env APP_URL "$CONTROL_PLANE_URL"
+  set_env AGENT_SERVER_URL "$CONTROL_PLANE_URL"
+  case "$CONTROL_PLANE_URL" in
+    https://*) set_env SESSION_COOKIE_SECURE "true"; set_env ALLOW_INSECURE_HTTP "0" ;;
+    http://127.0.0.1:*|http://localhost:*|http://\[::1\]:*) set_env SESSION_COOKIE_SECURE "false"; set_env ALLOW_INSECURE_HTTP "0" ;;
+    *) set_env SESSION_COOKIE_SECURE "false"; set_env ALLOW_INSECURE_HTTP "1" ;;
+  esac
   set_env RUSTDESK_ID_SERVER "${HOST_ADDRESS}:21116"
   set_env RUSTDESK_RELAY_SERVER "${HOST_ADDRESS}:21117"
 fi

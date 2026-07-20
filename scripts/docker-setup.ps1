@@ -3,6 +3,7 @@ param(
     [string] $HostAddress,
     [ValidateRange(1, 65535)]
     [int] $Port = 3000,
+    [string] $PublicUrl,
     [string] $EnvFile = ".env",
     [ValidateRange(30, 3600)]
     [int] $WaitTimeoutSeconds = 900,
@@ -19,6 +20,7 @@ $EnvPath = if ([System.IO.Path]::IsPathRooted($EnvFile)) {
 $EnvWasCreated = -not (Test-Path -LiteralPath $EnvPath)
 $HostWasExplicit = $PSBoundParameters.ContainsKey("HostAddress")
 $PortWasExplicit = $PSBoundParameters.ContainsKey("Port")
+$PublicUrlWasExplicit = $PSBoundParameters.ContainsKey("PublicUrl")
 
 function New-HexSecret {
     param([int] $ByteCount)
@@ -131,12 +133,12 @@ try {
     }
 
     $adminPassword = Get-DotEnvValue -Path $EnvPath -Name "BOOTSTRAP_ADMIN_PASSWORD"
-    if ([string]::IsNullOrWhiteSpace($adminPassword) -or $adminPassword -eq "change-this-before-starting") {
+    if ([string]::IsNullOrWhiteSpace($adminPassword) -or $adminPassword.Length -lt 12 -or @("Ethic0n1", "change-this-before-starting") -contains $adminPassword) {
         $generatedPassword = New-HexSecret -ByteCount 16
         Set-DotEnvValue -Path $EnvPath -Name "BOOTSTRAP_ADMIN_PASSWORD" -Value $generatedPassword
     }
 
-    if ($EnvWasCreated -or $HostWasExplicit -or $PortWasExplicit) {
+    if ($EnvWasCreated -or $HostWasExplicit -or $PortWasExplicit -or $PublicUrlWasExplicit) {
         if ([string]::IsNullOrWhiteSpace($HostAddress)) {
             $HostAddress = Get-PreferredLanAddress
         }
@@ -145,8 +147,18 @@ try {
         }
 
         Set-DotEnvValue -Path $EnvPath -Name "OPSPILOT_PORT" -Value $Port.ToString()
-        Set-DotEnvValue -Path $EnvPath -Name "APP_URL" -Value "http://${HostAddress}:$Port"
-        Set-DotEnvValue -Path $EnvPath -Name "AGENT_SERVER_URL" -Value "http://${HostAddress}:$Port"
+        $controlPlaneUrl = "http://${HostAddress}:$Port"
+        if ($PublicUrlWasExplicit) {
+            $parsedPublicUrl = $null
+            if (-not [System.Uri]::TryCreate($PublicUrl, [System.UriKind]::Absolute, [ref]$parsedPublicUrl) -or $parsedPublicUrl.Scheme -ne "https" -or $parsedPublicUrl.UserInfo) {
+                throw "PublicUrl must be an absolute HTTPS URL without embedded credentials."
+            }
+            $controlPlaneUrl = $PublicUrl.TrimEnd("/")
+        }
+        Set-DotEnvValue -Path $EnvPath -Name "APP_URL" -Value $controlPlaneUrl
+        Set-DotEnvValue -Path $EnvPath -Name "AGENT_SERVER_URL" -Value $controlPlaneUrl
+        Set-DotEnvValue -Path $EnvPath -Name "SESSION_COOKIE_SECURE" -Value $(if ($controlPlaneUrl.StartsWith("https://")) { "true" } else { "false" })
+        Set-DotEnvValue -Path $EnvPath -Name "ALLOW_INSECURE_HTTP" -Value $(if ($controlPlaneUrl.StartsWith("https://") -or $HostAddress -in @("127.0.0.1", "localhost", "::1")) { "0" } else { "1" })
         Set-DotEnvValue -Path $EnvPath -Name "RUSTDESK_ID_SERVER" -Value "${HostAddress}:21116"
         Set-DotEnvValue -Path $EnvPath -Name "RUSTDESK_RELAY_SERVER" -Value "${HostAddress}:21117"
     }

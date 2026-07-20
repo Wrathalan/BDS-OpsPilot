@@ -661,6 +661,16 @@ kbd { padding: 1px 4px; border: 1px solid var(--border); background: var(--panel
 .security-panel > div:not(.panel-head) { min-height: 31px; padding: 5px 9px; }
 .security-panel > div > span { font-size: 9px; }
 .security-panel > div > strong { font-size: 8px; }
+.technician-invite-panel { margin-top: 8px; }
+.panel-head-actions { display: flex; align-items: center; gap: 8px; }
+.panel-head-actions > span { color: var(--text-dim); font-size: 8px; }
+.technician-invite-table { min-width: 880px; }
+.scope-fieldset { display: grid; gap: 5px; margin: 0; padding: 8px; border: 1px solid var(--border); }
+.scope-fieldset legend { padding: 0 4px; color: var(--text-soft); font-size: 9px; font-weight: 600; }
+.modal-form .check-row { min-height: 24px; display: flex; grid-template-columns: none; flex-direction: row; align-items: center; gap: 7px; font-size: 9px; font-weight: 500; }
+.modal-form .check-row input { width: 14px; min-height: 14px; margin: 0; }
+.password-policy { margin: -5px 0 0; color: var(--text-dim); font-size: 8px; line-height: 1.45; }
+.invite-unavailable-icon { margin-bottom: 9px; color: var(--text-dim); }
 
 /* Desktop-style dialogs */
 .modal-backdrop { padding: 14px; background: rgba(5, 7, 10, .72); }
