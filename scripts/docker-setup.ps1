@@ -166,7 +166,7 @@ try {
         throw "Docker deployment did not become healthy within $WaitTimeoutSeconds seconds."
     }
 
-    & docker compose --env-file $EnvPath exec -T opspilot node scripts/create-backup.mjs
+    & docker compose --env-file $EnvPath exec -T --user node opspilot node scripts/create-backup.mjs
     if ($LASTEXITCODE -ne 0) {
         throw "Docker deployment became healthy, but its verified backup failed."
     }

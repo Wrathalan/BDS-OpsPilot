@@ -26,6 +26,7 @@ trap stop_children EXIT
 
 mkdir -p /data /rustdesk /backups
 chown -R node:node /data /rustdesk
+chown node:node /backups
 
 cd /app
 node scripts/validate-runtime-config.mjs

@@ -56,7 +56,7 @@ docker compose down
 Every successful one-command deployment writes a consistent SQLite snapshot, the RustDesk server identity, SHA-256 checksums, and a manifest under `./backups/<timestamp>/`. Backups older than `BACKUP_RETENTION_DAYS` are removed; the default is 30 days. Create an additional backup at any time:
 
 ```console
-docker compose exec -T opspilot node scripts/create-backup.mjs
+docker compose exec -T --user node opspilot node scripts/create-backup.mjs
 ```
 
 Copy `backups/` to storage outside this Docker host on a schedule appropriate to the environment. To recover, stop the stack, verify the manifest checksums, restore `opspilot.db` to the `opspilot-rmm-data` volume and both `id_ed25519` files to `opspilot-rustdesk-data`, then start the stack and confirm its health check. Do not restore only one of the database and RustDesk identity when remote support continuity matters.

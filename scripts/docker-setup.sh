@@ -121,7 +121,7 @@ if [ "${OPSPILOT_CONFIG_ONLY:-0}" = "1" ]; then
 fi
 
 docker compose --env-file "$ENV_FILE" up --build --detach --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
-docker compose --env-file "$ENV_FILE" exec -T opspilot node scripts/create-backup.mjs
+docker compose --env-file "$ENV_FILE" exec -T --user node opspilot node scripts/create-backup.mjs
 docker compose --env-file "$ENV_FILE" ps
 
 APP_URL=$(get_env APP_URL)
