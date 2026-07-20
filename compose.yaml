@@ -80,8 +80,3 @@ volumes:
     name: opspilot-rmm-data
   rustdesk_data:
     name: opspilot-rustdesk-data
-
-networks:
-  default:
-    name: opspilot-internal
-    internal: true
