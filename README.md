@@ -44,6 +44,8 @@ OPSPILOT_HOST=192.168.2.107 ./scripts/docker-setup.sh
 
 The container health check verifies the web server, database, RustDesk ID server, and RustDesk relay. SQLite is persisted at `/data/opspilot.db` in `opspilot-rmm-data`; the RustDesk identity remains in `opspilot-rustdesk-data`. Both volumes are mounted into the single `opspilot-rmm` container. The root filesystem is read-only, application and RustDesk processes run without root privileges, Linux capabilities are restricted, process count is capped, and container logs rotate.
 
+On Unraid, the Docker list item includes the OpsPilot icon and an **Open WebUI** shortcut. Both use the deployed `APP_URL`, so the shortcut opens the same LAN or reverse-proxy address printed by setup.
+
 ```powershell
 docker compose logs -f opspilot
 docker compose down
