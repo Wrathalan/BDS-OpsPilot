@@ -6,6 +6,9 @@ services:
       dockerfile: Dockerfile
     image: opspilot-rmm:local
     restart: unless-stopped
+    read_only: true
+    pids_limit: 256
+    stop_grace_period: 30s
     labels:
       net.unraid.docker.icon: "${APP_URL:-http://127.0.0.1:3000}/opspilot-docker-icon.png"
     ports:
@@ -23,6 +26,14 @@ services:
       SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-}"
       AGENT_SERVER_URL: "${AGENT_SERVER_URL:-http://127.0.0.1:3000}"
       APP_MODE: "live"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CHECKPOINT_DISABLE: "1"
+      PRISMA_HIDE_UPDATE_MESSAGE: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+      NO_UPDATE_NOTIFIER: "1"
       TENANT_NAME: "${TENANT_NAME:-OpsPilot Live}"
       TENANT_SLUG: "${TENANT_SLUG:-opspilot-local}"
       BOOTSTRAP_ADMIN_USERNAME: "${BOOTSTRAP_ADMIN_USERNAME:-root}"
@@ -34,14 +45,22 @@ services:
       RUSTDESK_RELAY_SERVER: "${RUSTDESK_RELAY_SERVER:-127.0.0.1:21117}"
       RUSTDESK_PUBLIC_KEY_PATH: "/rustdesk/id_ed25519.pub"
       RDP_FALLBACK_ENABLED: "${RDP_FALLBACK_ENABLED:-true}"
+      OPSPILOT_BACKUP_DIR: "/backups"
+      BACKUP_RETENTION_DAYS: "${BACKUP_RETENTION_DAYS:-30}"
     volumes:
       - opspilot_data:/data
       - rustdesk_data:/rustdesk
+      - ./backups:/backups
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
+      - /app/.next/cache:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=0755
+      - /home/node/.npm:rw,nosuid,nodev,noexec,size=32m,uid=1000,gid=1000,mode=0700
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     cap_add:
+      - CHOWN
       - SETGID
       - SETUID
     healthcheck:
@@ -50,9 +69,19 @@ services:
       timeout: 5s
       retries: 8
       start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 volumes:
   opspilot_data:
     name: opspilot-rmm-data
   rustdesk_data:
     name: opspilot-rustdesk-data
+
+networks:
+  default:
+    name: opspilot-internal
+    internal: true

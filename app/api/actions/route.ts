@@ -5,7 +5,9 @@ import { getSessionUser } from "@/lib/auth";
 import { hashAgentSecret } from "@/lib/agent-auth";
 import { db } from "@/lib/db";
 import { canRunAutomation } from "@/lib/domain";
+import { clientAddress } from "@/lib/login-rate-limit";
 import { assertOrganization, assertPermission, AuthorizationError, type SessionUser } from "@/lib/rbac";
+import { isTrustedBrowserOrigin } from "@/lib/request-origin";
 
 const id = z.string().min(1).max(80);
 const optionalId = z.union([id, z.literal("")]).optional();
@@ -22,14 +24,11 @@ const actionSchema = z.discriminatedUnion("action", [
 ]);
 
 function requestContext(request: Request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0] ?? "local-browser";
+  return clientAddress(request);
 }
 
 function validateOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return;
-  const expected = new URL(process.env.APP_URL ?? "http://127.0.0.1:3000").origin;
-  if (origin !== expected && origin !== "http://localhost:3000") throw new AuthorizationError("Request origin was not accepted.");
+  if (!isTrustedBrowserOrigin(request)) throw new AuthorizationError("Request origin was not accepted.");
 }
 
 async function audit(user: SessionUser, request: Request, action: string, resourceType: string, resourceId: string, organizationId?: string | null, beforeSummary?: unknown, afterSummary?: unknown, success = true) {

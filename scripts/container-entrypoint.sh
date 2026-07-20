@@ -24,17 +24,19 @@ trap 'stop_children; exit 143' TERM
 trap 'stop_children; exit 130' INT
 trap stop_children EXIT
 
-mkdir -p /data /rustdesk
+mkdir -p /data /rustdesk /backups
+chown -R node:node /data /rustdesk
 
 cd /app
+node scripts/validate-runtime-config.mjs
 gosu node npm run db:sync
 
 cd /rustdesk
-HOME=/rustdesk env -u PORT /usr/local/bin/hbbs -r "${RUSTDESK_RELAY_SERVER:-127.0.0.1:21117}" &
+gosu node env -u PORT HOME=/rustdesk /usr/local/bin/hbbs -r "${RUSTDESK_RELAY_SERVER:-127.0.0.1:21117}" &
 HBBS_PID=$!
 printf '%s\n' "$HBBS_PID" > /tmp/opspilot-hbbs.pid
 
-HOME=/rustdesk env -u PORT /usr/local/bin/hbbr &
+gosu node env -u PORT HOME=/rustdesk /usr/local/bin/hbbr &
 HBBR_PID=$!
 printf '%s\n' "$HBBR_PID" > /tmp/opspilot-hbbr.pid
 

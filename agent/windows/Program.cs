@@ -692,6 +692,9 @@ internal static class RemoteSupportInstaller
             relay-server = '{Toml(provider.RelayServer!)}'
             key = '{Toml(provider.Key!)}'
             verification-method = 'use-permanent-password'
+            allow-auto-update = 'N'
+            enable-lan-discovery = 'N'
+            allow-remote-config-modification = 'N'
             """;
         var profiles = new[]
         {

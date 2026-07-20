@@ -78,6 +78,8 @@ if [ ! -f "$ENV_FILE" ]; then
   cp .env.example "$ENV_FILE"
   ENV_WAS_CREATED=1
 fi
+chmod 600 "$ENV_FILE"
+mkdir -p backups
 
 SESSION_SECRET=$(get_env SESSION_SECRET)
 if [ -z "$SESSION_SECRET" ] || [ "$SESSION_SECRET" = "replace-with-at-least-32-random-characters" ]; then
@@ -109,6 +111,8 @@ if [ "$ENV_WAS_CREATED" -eq 1 ] || [ -n "${OPSPILOT_HOST+x}" ] || [ -n "${OPSPIL
   set_env RUSTDESK_RELAY_SERVER "${HOST_ADDRESS}:21117"
 fi
 
+chmod 600 "$ENV_FILE"
+
 docker compose --env-file "$ENV_FILE" config --quiet
 
 if [ "${OPSPILOT_CONFIG_ONLY:-0}" = "1" ]; then
@@ -117,6 +121,7 @@ if [ "${OPSPILOT_CONFIG_ONLY:-0}" = "1" ]; then
 fi
 
 docker compose --env-file "$ENV_FILE" up --build --detach --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
+docker compose --env-file "$ENV_FILE" exec -T opspilot node scripts/create-backup.mjs
 docker compose --env-file "$ENV_FILE" ps
 
 APP_URL=$(get_env APP_URL)
