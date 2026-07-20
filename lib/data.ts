@@ -28,7 +28,7 @@ export async function getConsoleData(user: SessionUser) {
     db.automationRun.findMany({ where: { device: deviceWhere }, include: { automation: true, device: true, requestedBy: true }, orderBy: { createdAt: "desc" }, take: 50 }),
     db.ticket.findMany({ where: { tenantId: user.tenantId, ...(user.allOrganizations ? {} : { organizationId: { in: user.organizationIds } }) }, include: { organization: true, device: true, assignee: true, alert: true, comments: true }, orderBy: { updatedAt: "desc" }, take: 80 }),
     db.policy.findMany({ where: { tenantId: user.tenantId }, include: { parent: true, assignments: { include: { organization: true, location: true, device: true } }, conditions: true }, orderBy: { name: "asc" } }),
-    db.user.findMany({ where: { tenantId: user.tenantId }, include: { role: true, scopes: { include: { organization: true } } }, orderBy: { name: "asc" } }),
+    db.user.findMany({ where: { tenantId: user.tenantId, deletedAt: null }, include: { role: true, scopes: { include: { organization: true } } }, orderBy: { name: "asc" } }),
     db.auditEvent.findMany({ where: { tenantId: user.tenantId, ...(user.allOrganizations ? {} : { OR: [{ organizationId: null }, { organizationId: { in: user.organizationIds } }] }) }, include: { actor: true, organization: true }, orderBy: { createdAt: "desc" }, take: 120 }),
     db.reportDefinition.findMany({ where: { tenantId: user.tenantId }, include: { runs: { orderBy: { startedAt: "desc" }, take: 1 } }, orderBy: { name: "asc" } }),
     db.notification.findMany({ where: { tenantId: user.tenantId, OR: [{ userId: null }, { userId: user.id }] }, orderBy: { createdAt: "desc" }, take: 12 }),

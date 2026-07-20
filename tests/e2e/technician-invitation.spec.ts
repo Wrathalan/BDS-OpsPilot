@@ -33,12 +33,29 @@ test("administrator invites a scoped technician who creates their own account", 
   await technicianPage.getByRole("button", { name: "Create technician account" }).click();
   await expect(technicianPage.getByRole("heading", { name: "Operations overview" })).toBeVisible();
   await expect(technicianPage.getByRole("button", { name: new RegExp(`${name}.*Technician`) })).toBeVisible();
-  await technicianContext.close();
 
   await page.getByRole("button", { name: "Done" }).click();
   await page.reload();
   const inviteRow = page.getByRole("row", { name: new RegExp(email) });
   await expect(inviteRow).toBeVisible();
   await expect(inviteRow.getByText("accepted", { exact: true })).toBeVisible();
-  await expect(page.locator(".user-list").getByText(name, { exact: true })).toBeVisible();
+  const userList = page.locator(".user-list");
+  await expect(userList.getByText(name, { exact: true })).toBeVisible();
+  await expect(userList.getByRole("button", { name: "Edit root" })).toHaveCount(0);
+
+  await userList.getByRole("button", { name: `Edit ${name}` }).click();
+  const editDialog = page.getByRole("dialog", { name: `Edit ${name}` });
+  await editDialog.getByLabel("Role").selectOption("auditor");
+  await editDialog.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Technician account updated.")).toBeVisible();
+  await expect(userList.getByText(/Read-Only Auditor/)).toBeVisible();
+
+  await userList.getByRole("button", { name: `Delete ${name}` }).click();
+  const deleteDialog = page.getByRole("dialog", { name: `Delete ${name}` });
+  await deleteDialog.getByRole("button", { name: "Delete technician" }).click();
+  await expect(page.getByText("Technician account deleted.")).toBeVisible();
+  await expect(userList.getByText(name, { exact: true })).toHaveCount(0);
+  await technicianPage.goto("/overview");
+  await expect(technicianPage.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await technicianContext.close();
 });

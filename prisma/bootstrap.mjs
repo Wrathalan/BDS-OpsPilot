@@ -62,7 +62,7 @@ async function main() {
   const passwordHash = await hash(password, 12);
   const admin = await prisma.user.upsert({
     where: { tenantId_username: { tenantId: tenant.id, username } },
-    update: { email: process.env.BOOTSTRAP_ADMIN_EMAIL || "root@localhost", name: process.env.BOOTSTRAP_ADMIN_NAME || "root", passwordHash, roleId: roles.get("admin"), active: true, allOrganizations: true },
+    update: { email: process.env.BOOTSTRAP_ADMIN_EMAIL || "root@localhost", name: process.env.BOOTSTRAP_ADMIN_NAME || "root", passwordHash, roleId: roles.get("admin"), active: true, allOrganizations: true, deletedAt: null },
     create: { tenantId: tenant.id, username, email: process.env.BOOTSTRAP_ADMIN_EMAIL || "root@localhost", name: process.env.BOOTSTRAP_ADMIN_NAME || "root", passwordHash, roleId: roles.get("admin"), active: true, allOrganizations: true },
   });
   if (passwordChanged) await prisma.session.deleteMany({ where: { userId: admin.id } });

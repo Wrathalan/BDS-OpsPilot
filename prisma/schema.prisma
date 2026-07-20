@@ -40,6 +40,7 @@ model User {
   passwordHash             String
   active                   Boolean                 @default(true)
   allOrganizations         Boolean                 @default(false)
+  deletedAt                DateTime?
   lastLoginAt              DateTime?
   createdAt                DateTime                @default(now())
   tenant                   Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -58,6 +59,7 @@ model User {
   @@unique([tenantId, email])
   @@unique([tenantId, username])
   @@index([tenantId, active])
+  @@index([tenantId, deletedAt])
 }
 
 model Session {
