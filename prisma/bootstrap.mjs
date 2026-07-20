@@ -26,7 +26,10 @@ const roleSpecs = [
 async function main() {
   const username = process.env.BOOTSTRAP_ADMIN_USERNAME || "root";
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-  if (!password || password.length < 12 || ["Ethic0n1", "change-this-before-starting"].includes(password)) throw new Error("BOOTSTRAP_ADMIN_PASSWORD must be a unique value containing at least 12 characters.");
+  const legacyPasswordAllowed = process.env.ALLOW_KNOWN_ADMIN_PASSWORD === "1" && password === "Ethic0n1";
+  if (!password || (!legacyPasswordAllowed && (password.length < 12 || ["Ethic0n1", "change-this-before-starting"].includes(password)))) {
+    throw new Error("BOOTSTRAP_ADMIN_PASSWORD must be a unique value containing at least 12 characters unless the explicit legacy recovery exception is enabled.");
+  }
 
   const tenant = await prisma.tenant.upsert({
     where: { slug: process.env.TENANT_SLUG || "opspilot-local" },

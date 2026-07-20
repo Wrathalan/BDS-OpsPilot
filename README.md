@@ -34,6 +34,8 @@ That single command verifies Docker, creates `.env` when it is missing, generate
 
 The generated sign-in details and application URL are printed when the first setup finishes. They remain available in the local `.env`, which is ignored by Git. To override automatic LAN detection, provide the host address explicitly:
 
+For recovery of an installation that must retain the legacy root credential, set `ALLOW_KNOWN_ADMIN_PASSWORD=1` together with the previously established password in `.env`, then rerun setup. This compatibility exception is intentionally disabled by default and permits only that one legacy value; use it only on an access-restricted control plane because the credential is known and shorter than the normal production minimum.
+
 ```powershell
 .\scripts\docker-setup.ps1 -HostAddress 192.168.2.107
 ```

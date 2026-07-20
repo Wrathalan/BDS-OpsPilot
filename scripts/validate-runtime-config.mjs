@@ -19,6 +19,11 @@ function encryptedOrExplicitlyAllowed(value) {
   return url.protocol === "https:" || ["localhost", "127.0.0.1", "::1"].includes(url.hostname) || process.env.ALLOW_INSECURE_HTTP === "1";
 }
 
+function validBootstrapAdminPassword(value) {
+  if (process.env.ALLOW_KNOWN_ADMIN_PASSWORD === "1" && value === "Ethic0n1") return true;
+  return value.length >= 12 && !["Ethic0n1", "change-this-before-starting"].includes(value);
+}
+
 function validHostAndPort(value) {
   if (!value || /[/?#@\s]/.test(value)) return false;
   const separator = value.lastIndexOf(":");
@@ -28,7 +33,8 @@ function validHostAndPort(value) {
 }
 
 requireValue("SESSION_SECRET", (value) => value.length >= 32 && !value.toLowerCase().includes("replace-with"), "must contain at least 32 non-placeholder characters");
-requireValue("BOOTSTRAP_ADMIN_PASSWORD", (value) => value.length >= 12 && !["Ethic0n1", "change-this-before-starting"].includes(value), "must contain at least 12 characters and must not be a known development password");
+requireValue("ALLOW_KNOWN_ADMIN_PASSWORD", (value) => value === "0" || value === "1", "must be 0 or 1");
+requireValue("BOOTSTRAP_ADMIN_PASSWORD", validBootstrapAdminPassword, "must contain at least 12 characters and must not be a known development password unless the explicit legacy recovery exception is enabled");
 requireValue("APP_URL", (value) => validHttpUrl(value) && encryptedOrExplicitlyAllowed(value), "must use HTTPS outside loopback unless ALLOW_INSECURE_HTTP=1 is explicitly set");
 requireValue("AGENT_SERVER_URL", (value) => validHttpUrl(value) && encryptedOrExplicitlyAllowed(value), "must use HTTPS outside loopback unless ALLOW_INSECURE_HTTP=1 is explicitly set");
 requireValue("APP_MODE", (value) => value === "live", "must be live");
