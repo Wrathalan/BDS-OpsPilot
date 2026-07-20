@@ -14,6 +14,11 @@ function validHttpUrl(value) {
   }
 }
 
+function encryptedOrExplicitlyAllowed(value) {
+  const url = new URL(value);
+  return url.protocol === "https:" || ["localhost", "127.0.0.1", "::1"].includes(url.hostname) || process.env.ALLOW_INSECURE_HTTP === "1";
+}
+
 function validHostAndPort(value) {
   if (!value || /[/?#@\s]/.test(value)) return false;
   const separator = value.lastIndexOf(":");
@@ -23,9 +28,9 @@ function validHostAndPort(value) {
 }
 
 requireValue("SESSION_SECRET", (value) => value.length >= 32 && !value.toLowerCase().includes("replace-with"), "must contain at least 32 non-placeholder characters");
-requireValue("BOOTSTRAP_ADMIN_PASSWORD", (value) => value.length >= 8 && value !== "change-this-before-starting", "must contain at least 8 characters and must not be the example password");
-requireValue("APP_URL", validHttpUrl, "must be a valid HTTP or HTTPS URL without embedded credentials");
-requireValue("AGENT_SERVER_URL", validHttpUrl, "must be a valid endpoint-reachable HTTP or HTTPS URL without embedded credentials");
+requireValue("BOOTSTRAP_ADMIN_PASSWORD", (value) => value.length >= 12 && !["Ethic0n1", "change-this-before-starting"].includes(value), "must contain at least 12 characters and must not be a known development password");
+requireValue("APP_URL", (value) => validHttpUrl(value) && encryptedOrExplicitlyAllowed(value), "must use HTTPS outside loopback unless ALLOW_INSECURE_HTTP=1 is explicitly set");
+requireValue("AGENT_SERVER_URL", (value) => validHttpUrl(value) && encryptedOrExplicitlyAllowed(value), "must use HTTPS outside loopback unless ALLOW_INSECURE_HTTP=1 is explicitly set");
 requireValue("APP_MODE", (value) => value === "live", "must be live");
 requireValue("RUSTDESK_ID_SERVER", validHostAndPort, "must be a host and port");
 requireValue("RUSTDESK_RELAY_SERVER", validHostAndPort, "must be a host and port");

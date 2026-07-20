@@ -27,31 +27,33 @@ model Tenant {
   reportDefinitions ReportDefinition[]
   deviceGroups      DeviceGroup[]
   enrollmentTokens  EnrollmentToken[]
+  technicianInvites TechnicianInvite[]
 }
 
 model User {
-  id                      String                  @id @default(cuid())
-  tenantId                String
-  roleId                  String
-  email                   String
-  username                String
-  name                    String
-  passwordHash            String
-  active                  Boolean                 @default(true)
-  allOrganizations        Boolean                 @default(false)
-  lastLoginAt             DateTime?
-  createdAt               DateTime                @default(now())
-  tenant                  Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  role                    Role                    @relation(fields: [roleId], references: [id])
-  scopes                  UserOrganizationScope[]
-  sessions                Session[]
-  requestedAutomationRuns AutomationRun[]         @relation("RequestedAutomationRuns")
-  assignedAlerts          Alert[]                 @relation("AlertAssignee")
-  assignedTickets         Ticket[]                @relation("TicketAssignee")
-  ticketComments          TicketComment[]
-  notifications           Notification[]
-  auditEvents             AuditEvent[]
-  createdEnrollmentTokens EnrollmentToken[]
+  id                       String                  @id @default(cuid())
+  tenantId                 String
+  roleId                   String
+  email                    String
+  username                 String
+  name                     String
+  passwordHash             String
+  active                   Boolean                 @default(true)
+  allOrganizations         Boolean                 @default(false)
+  lastLoginAt              DateTime?
+  createdAt                DateTime                @default(now())
+  tenant                   Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role                     Role                    @relation(fields: [roleId], references: [id])
+  scopes                   UserOrganizationScope[]
+  sessions                 Session[]
+  requestedAutomationRuns  AutomationRun[]         @relation("RequestedAutomationRuns")
+  assignedAlerts           Alert[]                 @relation("AlertAssignee")
+  assignedTickets          Ticket[]                @relation("TicketAssignee")
+  ticketComments           TicketComment[]
+  notifications            Notification[]
+  auditEvents              AuditEvent[]
+  createdEnrollmentTokens  EnrollmentToken[]
+  createdTechnicianInvites TechnicianInvite[]      @relation("CreatedTechnicianInvites")
 
   @@unique([tenantId, email])
   @@unique([tenantId, username])
@@ -70,14 +72,15 @@ model Session {
 }
 
 model Role {
-  id          String           @id @default(cuid())
-  tenantId    String
-  name        String
-  description String
-  systemKey   String
-  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users       User[]
-  permissions RolePermission[]
+  id                String             @id @default(cuid())
+  tenantId          String
+  name              String
+  description       String
+  systemKey         String
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users             User[]
+  permissions       RolePermission[]
+  technicianInvites TechnicianInvite[]
 
   @@unique([tenantId, systemKey])
 }
@@ -108,23 +111,24 @@ model UserOrganizationScope {
 }
 
 model Organization {
-  id                String                  @id @default(cuid())
-  tenantId          String
-  name              String
-  slug              String
-  industry          String?
-  status            String                  @default("active")
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  locations         Location[]
-  devices           Device[]
-  scopes            UserOrganizationScope[]
-  policyAssignments PolicyAssignment[]
-  alerts            Alert[]
-  tickets           Ticket[]
-  auditEvents       AuditEvent[]
-  enrollmentTokens  EnrollmentToken[]
+  id                     String                         @id @default(cuid())
+  tenantId               String
+  name                   String
+  slug                   String
+  industry               String?
+  status                 String                         @default("active")
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  tenant                 Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locations              Location[]
+  devices                Device[]
+  scopes                 UserOrganizationScope[]
+  policyAssignments      PolicyAssignment[]
+  alerts                 Alert[]
+  tickets                Ticket[]
+  auditEvents            AuditEvent[]
+  enrollmentTokens       EnrollmentToken[]
+  technicianInviteScopes TechnicianInviteOrganization[]
 
   @@unique([tenantId, slug])
 }
@@ -262,6 +266,39 @@ model EnrollmentToken {
 
   @@index([tenantId, expiresAt])
   @@index([organizationId, locationId])
+}
+
+model TechnicianInvite {
+  id                 String                         @id @default(cuid())
+  tenantId           String
+  roleId             String
+  createdById        String
+  email              String
+  name               String
+  tokenHash          String                         @unique
+  tokenPrefix        String
+  allOrganizations   Boolean                        @default(false)
+  expiresAt          DateTime
+  acceptedAt         DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime                       @default(now())
+  tenant             Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role               Role                           @relation(fields: [roleId], references: [id])
+  createdBy          User                           @relation("CreatedTechnicianInvites", fields: [createdById], references: [id], onDelete: Cascade)
+  organizationScopes TechnicianInviteOrganization[]
+
+  @@index([tenantId, email, expiresAt])
+  @@index([createdById, createdAt])
+}
+
+model TechnicianInviteOrganization {
+  inviteId       String
+  organizationId String
+  invite         TechnicianInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([inviteId, organizationId])
+  @@index([organizationId])
 }
 
 model AgentCredential {

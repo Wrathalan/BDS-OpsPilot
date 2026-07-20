@@ -8,7 +8,7 @@ const safeJson = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 export async function getConsoleData(user: SessionUser) {
   const organizationWhere = user.allOrganizations ? { tenantId: user.tenantId } : { tenantId: user.tenantId, id: { in: user.organizationIds } };
   const deviceWhere = user.allOrganizations ? { tenantId: user.tenantId } : { tenantId: user.tenantId, organizationId: { in: user.organizationIds } };
-  const [organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, metrics, enrollmentTokens] = await Promise.all([
+  const [organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, metrics, enrollmentTokens, technicianInvites] = await Promise.all([
     db.organization.findMany({
       where: organizationWhere,
       include: {
@@ -34,6 +34,9 @@ export async function getConsoleData(user: SessionUser) {
     db.notification.findMany({ where: { tenantId: user.tenantId, OR: [{ userId: null }, { userId: user.id }] }, orderBy: { createdAt: "desc" }, take: 12 }),
     db.deviceMetric.findMany({ where: { device: deviceWhere, timestamp: { gte: new Date(Date.now() - 30 * 86_400_000) } }, orderBy: { timestamp: "asc" } }),
     db.enrollmentToken.findMany({ where: { tenantId: user.tenantId, ...(user.allOrganizations ? {} : { organizationId: { in: user.organizationIds } }) }, include: { organization: true, location: true, createdBy: true }, orderBy: { createdAt: "desc" }, take: 100 }),
+    user.permissionKeys.includes("tenant.manage")
+      ? db.technicianInvite.findMany({ where: { tenantId: user.tenantId }, include: { role: true, createdBy: true, organizationScopes: { include: { organization: true } } }, orderBy: { createdAt: "desc" }, take: 100 })
+      : Promise.resolve([]),
   ]);
 
   const statusCounts = {
@@ -55,7 +58,7 @@ export async function getConsoleData(user: SessionUser) {
   });
   const osBreakdown = Object.entries(devices.reduce<Record<string, number>>((acc, device) => { const os = device.operatingSystem.split(" ")[0]; acc[os] = (acc[os] ?? 0) + 1; return acc; }, {})).map(([name, count]) => ({ name, count }));
 
-  return safeJson({ generatedAt: new Date(), organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, enrollmentTokens, trend, osBreakdown, stats: { totalDevices: devices.length, ...statusCounts, activeAlerts: activeAlerts.length, criticalAlerts: activeAlerts.filter((item) => item.severity === "critical").length, warningAlerts: activeAlerts.filter((item) => item.severity === "warning").length, patchCompliance, pendingReboot: devices.filter((item) => item.pendingReboot).length, automationSuccess: automationRuns.length ? Math.round(successfulRuns / automationRuns.length * 100) : 100, openTickets: openTickets.length } });
+  return safeJson({ generatedAt: new Date(), organizations, devices, alerts, patches, automations, automationRuns, tickets, policies, users, auditEvents, reports, notifications, enrollmentTokens, technicianInvites, trend, osBreakdown, stats: { totalDevices: devices.length, ...statusCounts, activeAlerts: activeAlerts.length, criticalAlerts: activeAlerts.filter((item) => item.severity === "critical").length, warningAlerts: activeAlerts.filter((item) => item.severity === "warning").length, patchCompliance, pendingReboot: devices.filter((item) => item.pendingReboot).length, automationSuccess: automationRuns.length ? Math.round(successfulRuns / automationRuns.length * 100) : 100, openTickets: openTickets.length } });
 }
 
 function policyNode(policy: { id: string; name: string; settings: string; parent: { id: string; name: string; settings: string } | null }): PolicyNode {

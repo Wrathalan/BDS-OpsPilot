@@ -30,7 +30,7 @@ Linux or Unraid:
 ./scripts/docker-setup.sh
 ```
 
-That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, and starts the self-contained `opspilot-rmm` container. The web console, RustDesk ID server, and RustDesk relay share that one container and lifecycle. Setup waits until all three processes are healthy, validates the production configuration, and writes a verified database-and-server-identity backup. It is safe to rerun: an existing `.env`, administrator password, database volume, and RustDesk server identity are retained.
+That single command verifies Docker, creates `.env` when it is missing, generates the session secret and initial root password, selects a LAN-reachable host address, builds the control plane and Windows endpoint executable, and starts the self-contained `opspilot-rmm` container. The web console, RustDesk ID server, and RustDesk relay share that one container and lifecycle. Setup waits until all three processes are healthy, validates the production configuration, and writes a verified database-and-server-identity backup. It is safe to rerun: an existing strong administrator password, database volume, and RustDesk server identity are retained. Missing, known-development, or shorter-than-12-character bootstrap passwords are replaced with a generated 32-character value and existing administrator sessions are invalidated.
 
 The generated sign-in details and application URL are printed when the first setup finishes. They remain available in the local `.env`, which is ignored by Git. To override automatic LAN detection, provide the host address explicitly:
 
@@ -41,6 +41,26 @@ The generated sign-in details and application URL are printed when the first set
 ```bash
 OPSPILOT_HOST=192.168.2.107 ./scripts/docker-setup.sh
 ```
+
+For production HTTPS behind an existing reverse proxy, supply the externally reachable origin. Setup applies it to browser and agent links and enables Secure session cookies:
+
+```powershell
+.\scripts\docker-setup.ps1 -HostAddress 192.168.2.107 -PublicUrl https://opspilot.example.internal
+```
+
+```bash
+OPSPILOT_HOST=192.168.2.107 OPSPILOT_PUBLIC_URL=https://opspilot.example.internal ./scripts/docker-setup.sh
+```
+
+On an Unraid host already joined to Tailscale, a private tailnet-only HTTPS endpoint can be created without a public tunnel:
+
+```bash
+TAILSCALE_DNS=$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')
+tailscale serve --bg --yes 3000
+OPSPILOT_HOST=192.168.2.107 OPSPILOT_PUBLIC_URL="https://${TAILSCALE_DNS}" ./scripts/docker-setup.sh
+```
+
+Tailscale Serve access remains subject to tailnet policy. Every endpoint using that address must be able to resolve and reach the tailnet DNS name. Plain HTTP outside loopback requires the explicit `ALLOW_INSECURE_HTTP=1` compatibility flag and is not recommended for production enrollment.
 
 The container health check verifies the web server, database, RustDesk ID server, and RustDesk relay. SQLite is persisted at `/data/opspilot.db` in `opspilot-rmm-data`; the RustDesk identity remains in `opspilot-rustdesk-data`. Both volumes are mounted into the single `opspilot-rmm` container. The root filesystem is read-only, application and RustDesk processes run without root privileges, Linux capabilities are restricted, process count is capped, and container logs rotate.
 
@@ -122,6 +142,12 @@ node agent/opspilot-agent.mjs run --data-dir .agent-data
 Both agents use the same authenticated protocol. `once` performs one live cycle and exits; the cross-platform `run` command stays in the foreground while the native Windows agent runs from the notification area. Both poll for two allowlisted tasks: status refresh and inventory refresh. The native agent also retries approved remote-provider provisioning every 15 minutes. Neither agent executes a supplied shell command or arbitrary payload.
 
 Platform program and state locations are documented in [agent/INSTALL_PATHS.md](agent/INSTALL_PATHS.md). The repository-local `.agent-data` path is ignored by Git.
+
+## Invite technicians
+
+System administrators can open **Administration → Technician invitations** and issue an invitation for the Technician or Read-Only Auditor role. Each invitation is scoped to all organizations or a selected organization set, expires after the selected lifetime, and is displayed only once as a copyable link. OpsPilot does not contact an email provider; deliver the link through an approved private channel.
+
+The server stores only a secret-derived hash of the invitation token. The recipient chooses their own username and 12+ character complex password, the link is invalidated atomically on acceptance, and the new account is signed in with its assigned RBAC scope. Pending invitations can be revoked and creation, revocation, and acceptance are recorded in the audit log.
 
 ## Remote support
 

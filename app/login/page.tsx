@@ -26,7 +26,7 @@ export default async function LoginPage() {
             <div className="login-card">
               <span className="eyebrow">Operator authentication</span>
               <h1>Sign in</h1>
-              <p>Use the administrator account created during system bootstrap.</p>
+              <p>Use the bootstrap administrator or an invited operator account.</p>
               <LoginForm />
               <div className="bootstrap-note"><LockKeyhole size={14} /><span>Credentials are processed by the local control plane and are not embedded in the client.</span></div>
             </div>

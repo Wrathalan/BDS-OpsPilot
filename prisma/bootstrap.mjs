@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { hash } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -26,7 +26,7 @@ const roleSpecs = [
 async function main() {
   const username = process.env.BOOTSTRAP_ADMIN_USERNAME || "root";
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-  if (!password || password.length < 8) throw new Error("BOOTSTRAP_ADMIN_PASSWORD must be set to at least 8 characters.");
+  if (!password || password.length < 12 || ["Ethic0n1", "change-this-before-starting"].includes(password)) throw new Error("BOOTSTRAP_ADMIN_PASSWORD must be a unique value containing at least 12 characters.");
 
   const tenant = await prisma.tenant.upsert({
     where: { slug: process.env.TENANT_SLUG || "opspilot-local" },
@@ -54,12 +54,15 @@ async function main() {
     roles.set(spec.key, role.id);
   }
 
+  const existingAdmin = await prisma.user.findUnique({ where: { tenantId_username: { tenantId: tenant.id, username } } });
+  const passwordChanged = Boolean(existingAdmin && !(await compare(password, existingAdmin.passwordHash)));
   const passwordHash = await hash(password, 12);
   const admin = await prisma.user.upsert({
     where: { tenantId_username: { tenantId: tenant.id, username } },
     update: { email: process.env.BOOTSTRAP_ADMIN_EMAIL || "root@localhost", name: process.env.BOOTSTRAP_ADMIN_NAME || "root", passwordHash, roleId: roles.get("admin"), active: true, allOrganizations: true },
     create: { tenantId: tenant.id, username, email: process.env.BOOTSTRAP_ADMIN_EMAIL || "root@localhost", name: process.env.BOOTSTRAP_ADMIN_NAME || "root", passwordHash, roleId: roles.get("admin"), active: true, allOrganizations: true },
   });
+  if (passwordChanged) await prisma.session.deleteMany({ where: { userId: admin.id } });
 
   const actionDefinitions = [
     { key: "refresh-agent", name: "Refresh agent status", description: "Requests an immediate authenticated check-in from the endpoint agent." },
