@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     image: opspilot-rmm:local
     restart: unless-stopped
+    labels:
+      net.unraid.docker.icon: "${APP_URL:-http://127.0.0.1:3000}/opspilot-docker-icon.png"
     ports:
       - "${OPSPILOT_PORT:-3000}:3000"
       - "21115:21115/tcp"
