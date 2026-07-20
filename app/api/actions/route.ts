@@ -6,14 +6,19 @@ import { hashAgentSecret } from "@/lib/agent-auth";
 import { db } from "@/lib/db";
 import { canRunAutomation } from "@/lib/domain";
 import { clientAddress } from "@/lib/login-rate-limit";
+import { normalizeOrganizationSlug, organizationSlugPattern } from "@/lib/organizations";
 import { assertOrganization, assertPermission, AuthorizationError, type SessionUser } from "@/lib/rbac";
 import { isTrustedBrowserOrigin } from "@/lib/request-origin";
 import { hashTechnicianInviteToken, technicianInvitePrefix } from "@/lib/technician-invitations";
 
 const id = z.string().min(1).max(80);
 const optionalId = z.union([id, z.literal("")]).optional();
+const organizationSlug = z.preprocess(
+  (value) => typeof value === "string" ? normalizeOrganizationSlug(value) : value,
+  z.string().min(2, "Enter at least two letters or numbers for the URL slug.").max(80, "The URL slug must be 80 characters or fewer.").regex(organizationSlugPattern, "Use letters, numbers, and single hyphens for the URL slug."),
+);
 const actionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("createOrganization"), name: z.string().min(2).max(100), slug: z.string().regex(/^[a-z0-9-]+$/).max(80), industry: z.string().max(80).optional() }),
+  z.object({ action: z.literal("createOrganization"), name: z.string().trim().min(2, "Enter an organization name.").max(100), slug: organizationSlug, industry: z.string().trim().max(80).optional() }),
   z.object({ action: z.literal("createLocation"), organizationId: id, name: z.string().min(2).max(100), address: z.string().max(200).optional() }),
   z.object({ action: z.literal("createPolicy"), name: z.string().min(3).max(100), description: z.string().max(300), organizationId: optionalId, parentId: optionalId }),
   z.object({ action: z.literal("createEnrollmentToken"), organizationId: id, locationId: id, name: z.string().min(2).max(100), expiresInHours: z.coerce.number().int().min(1).max(168).default(24), maxUses: z.coerce.number().int().min(1).max(100).default(1) }),
@@ -54,6 +59,8 @@ export async function POST(request: Request) {
 
     if (input.action === "createOrganization") {
       assertPermission(user, "organization.manage");
+      const existing = await db.organization.findUnique({ where: { tenantId_slug: { tenantId: user.tenantId, slug: input.slug } } });
+      if (existing) throw new Error("An organization with this URL slug already exists.");
       const organization = await db.organization.create({ data: { tenantId: user.tenantId, name: input.name, slug: input.slug, industry: input.industry || "Business Services" } });
       await audit(user, request, "organization.created", "Organization", organization.id, organization.id, null, { name: organization.name });
       return NextResponse.json({ ok: true, organization });

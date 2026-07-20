@@ -12,6 +12,7 @@ test("administrator invites a scoped technician who creates their own account", 
   await page.getByLabel("Username or email").fill("root");
   await page.getByLabel("Password", { exact: true }).fill(rootPassword);
   await page.getByRole("button", { name: "Sign in to console" }).click();
+  await expect(page.getByRole("button", { name: /root.*Admin/i })).toBeVisible();
   await page.getByRole("link", { name: "Administration" }).click();
   await page.getByRole("button", { name: "Invite technician" }).click();
   await page.getByLabel("Full name").fill(name);
