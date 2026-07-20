@@ -96,6 +96,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .password-wrap input { padding-right: 46px; }
 .password-wrap button { border: 0; background: transparent; position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: var(--text-dim); padding: 6px; cursor: pointer; }
 .form-error { color: var(--red); background: rgba(255, 107, 117, .08); border: 1px solid rgba(255, 107, 117, .22); padding: 10px 12px; border-radius: 8px; font-size: 12px; }
+.field-hint { color: var(--text-muted); font-size: 10px; font-weight: 400; line-height: 1.35; }
 .login-submit { width: 100%; justify-content: center; padding: 13px 16px !important; margin-top: 2px; }
 .bootstrap-note { margin-top: 24px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text-dim); display: flex; align-items: flex-start; gap: 8px; font-size: 10px; line-height: 1.5; }
 .bootstrap-note svg { color: var(--cyan); flex: 0 0 auto; }

@@ -18,7 +18,7 @@ const permissions = [
 ];
 
 const roleSpecs = [
-  { name: "System Administrator", key: "admin", description: "Full tenant administration", permissions: permissions.map(([key]) => key) },
+  { name: "Admin", key: "admin", description: "Full control-plane administration", permissions: permissions.map(([key]) => key) },
   { name: "Technician", key: "technician", description: "Scoped operations and approved actions", permissions: ["device.view", "device.manage", "remote.control", "alert.manage", "automation.run", "patch.manage", "ticket.manage", "report.view", "audit.view"] },
   { name: "Read-Only Auditor", key: "auditor", description: "Read-only compliance access", permissions: ["device.view", "report.view", "audit.view"] },
 ];
