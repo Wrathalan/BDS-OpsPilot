@@ -3,6 +3,14 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 
+function reportFailure(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`OpsPilot backup failed: ${message}`);
+  process.exit(1);
+}
+process.on("uncaughtException", reportFailure);
+process.on("unhandledRejection", reportFailure);
+
 const backupRoot = process.env.OPSPILOT_BACKUP_DIR || "/backups";
 const retentionDays = Number.parseInt(process.env.BACKUP_RETENTION_DAYS || "30", 10);
 if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 3650) {
@@ -18,19 +26,29 @@ if (!existsSync(databasePath)) throw new Error(`Database not found at ${database
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const backupDirectory = path.join(backupRoot, timestamp);
 const backupDatabase = path.join(backupDirectory, "opspilot.db");
+const snapshotDatabase = path.join(path.dirname(databasePath), `.opspilot-backup-${timestamp}.db`);
 mkdirSync(backupDirectory, { recursive: true, mode: 0o700 });
 
 const prisma = new PrismaClient();
 try {
-  const escapedPath = backupDatabase.replaceAll("'", "''");
+  const escapedPath = snapshotDatabase.replaceAll("'", "''");
   await prisma.$executeRawUnsafe(`VACUUM INTO '${escapedPath}'`);
 } catch (error) {
+  rmSync(snapshotDatabase, { force: true });
   rmSync(backupDirectory, { recursive: true, force: true });
   throw error;
 } finally {
   await prisma.$disconnect();
 }
-chmodSync(backupDatabase, 0o600);
+try {
+  copyFileSync(snapshotDatabase, backupDatabase);
+  chmodSync(backupDatabase, 0o600);
+} catch (error) {
+  rmSync(backupDirectory, { recursive: true, force: true });
+  throw error;
+} finally {
+  rmSync(snapshotDatabase, { force: true });
+}
 
 const files = [backupDatabase];
 for (const fileName of ["id_ed25519", "id_ed25519.pub"]) {
