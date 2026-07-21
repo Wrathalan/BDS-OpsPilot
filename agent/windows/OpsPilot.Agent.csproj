@@ -14,7 +14,7 @@
     <UseAppHost>true</UseAppHost>
     <AssemblyName>opspilot-agent-windows-x64</AssemblyName>
     <RootNamespace>OpsPilot.Agent</RootNamespace>
-    <Version>0.6.2</Version>
+    <Version>0.6.3</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyTitle>OpsPilot Endpoint Agent</AssemblyTitle>
     <Product>OpsPilot Endpoint Agent</Product>

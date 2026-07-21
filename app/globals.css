@@ -580,6 +580,8 @@ kbd { padding: 1px 4px; border: 1px solid var(--border); background: var(--panel
 .status-critical, .status-urgent, .status-failed, .status-prohibited, .status-rejected { color: var(--red); background: transparent; }
 .status-acknowledged, .status-moderate, .status-medium-risk, .status-new, .status-open { color: var(--blue); background: transparent; }
 .status-provisioning { color: var(--blue); background: transparent; }
+.status-stalled { color: var(--amber); background: transparent; }
+.status-awaiting-agent { color: var(--text-dim); background: transparent; }
 .status-suppressed, .status-low-risk { color: var(--violet); background: transparent; }
 .status-offline, .status-disabled, .status-ended { color: var(--text-dim); background: transparent; }
 .util-cell > div, .mini-progress, .gauge-card > div { height: 3px; background: var(--panel-3); }

@@ -26,7 +26,7 @@ internal static class Program
 
 internal static class AgentProgram
 {
-    internal const string AgentVersion = "0.6.2";
+    internal const string AgentVersion = "0.6.3";
 
     public static async Task<int> RunAsync(string[] args, CancellationToken cancellation = default)
     {
@@ -149,7 +149,8 @@ internal static class AgentProgram
                 var payload = await HostInventory.CreateCheckInAsync(AgentVersion);
                 await client.CheckInAsync(config.AgentSecret, payload, cancellation.Token);
                 AgentLog.Success($"[{DateTimeOffset.Now:O}] Check-in accepted: CPU {payload.Cpu:0.0}% · memory {payload.Memory:0.0}% · disk {payload.DiskUsedPercent:0.0}%");
-                await client.ProcessTasksAsync(config.AgentSecret, cancellation.Token);
+                var processedTasks = await client.ProcessTasksAsync(config.AgentSecret, cancellation.Token);
+                if (processedTasks) nextRemoteSupportCheck = DateTimeOffset.MinValue;
                 if (DateTimeOffset.UtcNow >= nextRemoteSupportCheck)
                 {
                     await RemoteSupportInstaller.EnsureAsync(client, config, Environment.MachineName, cancellation.Token);
@@ -481,7 +482,7 @@ internal sealed class AgentClient(string server, string version) : IDisposable
     public async Task CheckInAsync(string secret, CheckInPayload payload, CancellationToken cancellation = default) =>
         _ = await PostAsync<JsonElement>("/api/agent/check-in", payload, secret, cancellation);
 
-    public async Task ProcessTasksAsync(string secret, CancellationToken cancellation = default)
+    public async Task<bool> ProcessTasksAsync(string secret, CancellationToken cancellation = default)
     {
         using var request = Authorized(HttpMethod.Get, "/api/agent/tasks", secret);
         using var response = await _http.SendAsync(request, cancellation);
@@ -507,6 +508,7 @@ internal sealed class AgentClient(string server, string version) : IDisposable
             }
             _ = await PostAsync<JsonElement>($"/api/agent/tasks/{Uri.EscapeDataString(task.Id)}/complete", new { status, output, failureReason }, secret, cancellation);
         }
+        return tasks.Count > 0;
     }
 
     public async Task<RemoteSupportBootstrap> GetRemoteSupportBootstrapAsync(string secret, CancellationToken cancellation = default)
@@ -588,6 +590,16 @@ internal static class RemoteSupportInstaller
             if (bootstrap.Providers.Rustdesk.Enabled && bootstrap.Providers.Rustdesk.Current?.Status != "ready")
             {
                 reports.Add(await InstallRustDeskAsync(client, config, bootstrap.Providers.Rustdesk, cancellation));
+            }
+            else if (!bootstrap.Providers.Rustdesk.Enabled && bootstrap.Providers.Rustdesk.Current?.Status != "failed")
+            {
+                reports.Add(new RemoteProviderReport(
+                    "rustdesk",
+                    bootstrap.Providers.Rustdesk.Current?.ExternalId ?? "unavailable",
+                    "failed",
+                    null,
+                    bootstrap.Providers.Rustdesk.DisabledReason ?? "RustDesk provisioning is disabled by the control plane.",
+                    "1.4.9"));
             }
 
             if (bootstrap.Providers.Rdp.Enabled) reports.Add(InspectRdp(hostname));
@@ -1069,7 +1081,7 @@ internal sealed record EnrollmentResponse(string DeviceId, string AgentSecret, i
 internal sealed record ApiError(string Error);
 internal sealed record RemoteSupportBootstrap(RemoteProviderSet Providers);
 internal sealed record RemoteProviderSet(RemoteProviderBootstrap Rustdesk, RemoteProviderBootstrap Rdp);
-internal sealed record RemoteProviderBootstrap(bool Enabled, string AssetUrl, string? Server, string? IdServer, string? RelayServer, string? Key, RemoteProviderCurrent? Current);
+internal sealed record RemoteProviderBootstrap(bool Enabled, string? DisabledReason, string AssetUrl, string? Server, string? IdServer, string? RelayServer, string? Key, RemoteProviderCurrent? Current);
 internal sealed record RemoteProviderCurrent(string ExternalId, string Status, DateTimeOffset? LastVerifiedAt);
 internal sealed record RemoteProviderReport(string Provider, string ExternalId, string Status, string? Secret, string? Error, string? Version);
 internal sealed record TaskEnvelope(List<AgentTask> Tasks);

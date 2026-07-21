@@ -25,14 +25,26 @@ export async function GET(request: Request) {
     db.remoteEndpoint.findMany({ where: { deviceId: credential.deviceId } }),
   ]);
   const current = new Map(installed.map((item) => [item.provider, { externalId: item.externalId, status: item.status, lastVerifiedAt: item.lastVerifiedAt }]));
+  const rustdeskIdServer = process.env.RUSTDESK_ID_SERVER || "";
+  const rustdeskRelayServer = process.env.RUSTDESK_RELAY_SERVER || "";
+  const rustdeskDisabledReason = !rustAsset
+    ? "The RustDesk client package is unavailable on the control plane."
+    : !rustdeskIdServer
+      ? "The RustDesk ID server is not configured on the control plane."
+      : !rustdeskRelayServer
+        ? "The RustDesk relay server is not configured on the control plane."
+        : !rustKey
+          ? "The RustDesk public key is unavailable on the control plane."
+          : null;
 
   return NextResponse.json({
     providers: {
       rustdesk: {
-        enabled: rustAsset && Boolean(process.env.RUSTDESK_ID_SERVER) && Boolean(rustKey),
+        enabled: rustdeskDisabledReason === null,
+        disabledReason: rustdeskDisabledReason,
         assetUrl: "/api/agent/remote-support/assets/rustdesk",
-        idServer: process.env.RUSTDESK_ID_SERVER || "",
-        relayServer: process.env.RUSTDESK_RELAY_SERVER || "",
+        idServer: rustdeskIdServer,
+        relayServer: rustdeskRelayServer,
         key: rustKey,
         current: current.get("rustdesk") || null,
       },
