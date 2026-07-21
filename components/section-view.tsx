@@ -9,17 +9,17 @@ import { normalizeOrganizationSlug } from "@/lib/organizations";
 import type { SessionUser } from "@/lib/rbac";
 import { TechnicianInvitations } from "@/components/technician-invitations";
 
-const sectionTitles: Record<string, { title: string; subtitle: string }> = {
-  overview: { title: "Operations overview", subtitle: "Live health, risk, and service performance across your managed estate." },
-  organizations: { title: "Organizations", subtitle: "Customers, business units, sites, and the devices assigned to each scope." },
-  devices: { title: "Device inventory", subtitle: "Search, inspect, and safely operate authenticated live endpoints." },
-  alerts: { title: "Alerts", subtitle: "Triage policy conditions, coordinate response, and confirm recovery." },
-  patching: { title: "Patch management", subtitle: "Approve, test, schedule, and report on agent-supplied patch inventory." },
-  automation: { title: "Automation library", subtitle: "Run only reviewed, predefined actions with a complete execution record." },
-  tickets: { title: "Service desk", subtitle: "Connect device conditions to accountable support workflows and SLA targets." },
-  reports: { title: "Reports", subtitle: "Saved operational views, compliance exports, and print-ready evidence." },
-  "audit-log": { title: "Audit log", subtitle: "Append-only evidence for privileged actions across the control plane." },
-  administration: { title: "Administration", subtitle: "Policy, users, enrollment credentials, agent status, and security controls." },
+const sectionTitles: Record<string, { title: string }> = {
+  overview: { title: "Operations overview" },
+  organizations: { title: "Organizations" },
+  devices: { title: "Device inventory" },
+  alerts: { title: "Alerts" },
+  patching: { title: "Patch management" },
+  automation: { title: "Automation library" },
+  tickets: { title: "Service desk" },
+  reports: { title: "Reports" },
+  "audit-log": { title: "Audit log" },
+  administration: { title: "Administration" },
 };
 
 const formatTime = (value: string | Date) => new Date(value).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -47,11 +47,11 @@ function StatusPill({ value }: { value: string }) {
 
 function PageHeader({ section, action }: { section: string; action?: React.ReactNode }) {
   const copy = sectionTitles[section];
-  return <header className="page-header"><div className="page-identity"><span className="breadcrumb">OpsPilot Live / {copy.title}</span><div className="page-title-line"><h1>{copy.title}</h1><span>{copy.subtitle}</span></div></div>{action && <div className="page-actions">{action}</div>}</header>;
+  return <header className="page-header"><div className="page-identity"><span className="breadcrumb">OpsPilot Live / {copy.title}</span><div className="page-title-line"><h1>{copy.title}</h1></div></div>{action && <div className="page-actions">{action}</div>}</header>;
 }
 
-function Modal({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="modal-card" role="dialog" aria-modal="true" aria-label={title}><div className="modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={18} /></button></div>{children}</section></div>;
+function Modal({ title, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="modal-card" role="dialog" aria-modal="true" aria-label={title}><div className="modal-head"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={18} /></button></div>{children}</section></div>;
 }
 
 function MetricCard({ label, value, detail, icon: Icon, tone = "blue" }: { label: string; value: string | number; detail: string; icon: typeof Activity; tone?: string }) {
@@ -247,7 +247,7 @@ function Reports({ data }: { data: ConsoleData }) {
 function AuditLog({ data }: { data: ConsoleData }) {
   const [query, setQuery] = useState("");
   const events = data.auditEvents.filter((event) => !query || [event.action, event.actor?.name, event.resourceType, event.organization?.name].some((value) => value?.toLowerCase().includes(query.toLowerCase())));
-  return <><PageHeader section="audit-log" action={<a className="ghost-button" href="/api/reports/audit-history.csv"><Download size={16} /> Export CSV</a>} /><div className="audit-assurance"><ShieldCheck size={20} /><div><strong>Append-only operational evidence</strong><span>Normal application workflows can create audit records but cannot edit or delete them.</span></div><span className="status-pill status-healthy"><i /> Integrity active</span></div><div className="filter-bar"><label className="table-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search actor, action, resource…" /></label><button className="ghost-button"><Filter size={15} /> Filters</button><span className="result-count">{events.length} events</span></div><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Scope</th><th>Context</th><th>Result</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><td className="mono small-mono">{formatTime(event.createdAt)}</td><td><span className="actor-cell"><span>{event.actor?.name.split(" ").map((part) => part[0]).join("") ?? "SY"}</span><strong>{event.actor?.name ?? "System"}</strong></span></td><td><code>{event.action}</code></td><td><span className="two-line"><strong>{event.resourceType}</strong><small className="mono">{event.resourceId.slice(0, 12)}</small></span></td><td>{event.organization?.name ?? "Tenant-wide"}</td><td className="muted">{event.requestContext}</td><td>{event.success ? <span className="audit-success"><Check size={14} /> Success</span> : <span className="audit-failure"><X size={14} /> Failed</span>}</td></tr>)}</tbody></table></div></>;
+  return <><PageHeader section="audit-log" action={<a className="ghost-button" href="/api/reports/audit-history.csv"><Download size={16} /> Export CSV</a>} /><div className="filter-bar"><label className="table-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search actor, action, resource…" /></label><button className="ghost-button"><Filter size={15} /> Filters</button><span className="result-count">{events.length} events</span></div><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Scope</th><th>Context</th><th>Result</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><td className="mono small-mono">{formatTime(event.createdAt)}</td><td><span className="actor-cell"><span>{event.actor?.name.split(" ").map((part) => part[0]).join("") ?? "SY"}</span><strong>{event.actor?.name ?? "System"}</strong></span></td><td><code>{event.action}</code></td><td><span className="two-line"><strong>{event.resourceType}</strong><small className="mono">{event.resourceId.slice(0, 12)}</small></span></td><td>{event.organization?.name ?? "Tenant-wide"}</td><td className="muted">{event.requestContext}</td><td>{event.success ? <span className="audit-success"><Check size={14} /> Success</span> : <span className="audit-failure"><X size={14} /> Failed</span>}</td></tr>)}</tbody></table></div></>;
 }
 
 function Administration({ data, user, canManage, canDevices, busy, onPolicy, onEnrollment, onEditTechnician, onDeleteTechnician, onMutate }: { data: ConsoleData; user: SessionUser; canManage: boolean; canDevices: boolean; busy: boolean; onPolicy: () => void; onEnrollment: () => void; onEditTechnician: (id: string) => void; onDeleteTechnician: (id: string) => void; onMutate: (payload: Record<string, unknown>, message: string) => Promise<unknown> }) {

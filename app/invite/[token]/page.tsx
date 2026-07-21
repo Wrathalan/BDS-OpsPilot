@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, LockKeyhole, Radar, ShieldCheck, UserRoundPlus } from "lucide-react";
+import { Activity, Radar, UserRoundPlus } from "lucide-react";
 import { db } from "@/lib/db";
 import { hashTechnicianInviteToken, technicianInviteStatus } from "@/lib/technician-invitations";
 import { InviteForm } from "./invite-form";
@@ -21,11 +21,10 @@ export default async function TechnicianInvitePage({ params }: { params: Promise
             <div><dt>Organization scope</dt><dd>{invite?.allOrganizations ? "All organizations" : invite?.organizationScopes.map(({ organization }) => organization.name).join(", ") || "Unavailable"}</dd></div>
             <div><dt>Invitation security</dt><dd>Single use · Time limited</dd></div>
           </dl>
-          <div className="login-security-note"><ShieldCheck size={16} /><span>Your password is stored as a bcrypt hash and the invitation token cannot be recovered from the server.</span></div>
         </aside>
         <section className="login-panel"><div className="login-card">
           <span className="eyebrow">Operator enrollment</span>
-          {active && invite ? <><h1>Set up your account</h1><p>You were invited as {invite.name}. Choose your username and a strong password to join the console.</p><InviteForm token={token} email={invite.email} /><div className="bootstrap-note"><LockKeyhole size={14} /><span>This link expires {invite.expiresAt.toLocaleString()} and is invalidated immediately after use.</span></div></> : <><UserRoundPlus size={25} className="invite-unavailable-icon" /><h1>Invitation unavailable</h1><p>This link is invalid, expired, revoked, or has already been used.</p><Link className="primary-button login-submit" href="/login">Return to sign in</Link></>}
+          {active && invite ? <><h1>Set up your account</h1><p>You were invited as {invite.name}. Choose your username and a strong password to join the console.</p><InviteForm token={token} email={invite.email} /><p className="form-note">Expires {invite.expiresAt.toLocaleString()} · Single use</p></> : <><UserRoundPlus size={25} className="invite-unavailable-icon" /><h1>Invitation unavailable</h1><p>This link is invalid, expired, revoked, or has already been used.</p><Link className="primary-button login-submit" href="/login">Return to sign in</Link></>}
         </div></section>
       </div>
       <footer className="login-footer"><span>OpsPilot RMM</span><span>Role- and organization-scoped access</span></footer>
