@@ -4,15 +4,15 @@ import { db } from "@/lib/db";
 import { hashTechnicianInviteToken, technicianInviteStatus } from "@/lib/technician-invitations";
 import { InviteForm } from "./invite-form";
 
-export const metadata = { title: "Accept technician invitation" };
+export const metadata = { title: "Accept operator invitation" };
 
 export default async function TechnicianInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const invite = await db.technicianInvite.findUnique({ where: { tokenHash: hashTechnicianInviteToken(token) }, include: { tenant: true, role: true, organizationScopes: { include: { organization: true } } } });
   const active = invite && technicianInviteStatus(invite) === "pending";
   return <main className="login-shell">
-    <section className="login-window" aria-label="OpsPilot technician invitation">
-      <header className="login-titlebar"><div className="brand"><span className="brand-mark"><Radar size={17} /></span><span>OpsPilot <em>Control Console</em></span></div><span className="environment-badge"><span className={`status-dot ${active ? "status-dot-online" : "status-dot-offline"}`} /> TECHNICIAN ACCESS</span></header>
+    <section className="login-window" aria-label="OpsPilot operator invitation">
+      <header className="login-titlebar"><div className="brand"><span className="brand-mark"><Radar size={17} /></span><span>OpsPilot <em>Control Console</em></span></div><span className="environment-badge"><span className={`status-dot ${active ? "status-dot-online" : "status-dot-offline"}`} /> OPERATOR ACCESS</span></header>
       <div className="login-workspace">
         <aside className="login-context" aria-label="Invitation details">
           <div className="login-context-head"><span className="context-icon"><Activity size={17} /></span><div><strong>{invite?.tenant.name ?? "OpsPilot Live"}</strong><span>Self-hosted operations service</span></div></div>

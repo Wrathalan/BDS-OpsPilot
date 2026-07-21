@@ -35,6 +35,6 @@ export function InviteForm({ token, email }: { token: string; email: string }) {
     <label>Confirm password<input name="confirm" type={show ? "text" : "password"} autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} minLength={12} required /></label>
     <p className="password-policy">Use at least 12 characters with upper- and lowercase letters, a number, and a symbol.</p>
     {error && <div className="form-error" role="alert">{error}</div>}
-    <button className="primary-button login-submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <>Create technician account <ArrowRight size={18} /></>}</button>
+    <button className="primary-button login-submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <>Create operator account <ArrowRight size={18} /></>}</button>
   </form>;
 }

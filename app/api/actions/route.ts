@@ -23,9 +23,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("createPolicy"), name: z.string().min(3).max(100), description: z.string().max(300), organizationId: optionalId, parentId: optionalId }),
   z.object({ action: z.literal("createEnrollmentToken"), organizationId: id, locationId: id, name: z.string().min(2).max(100), expiresInHours: z.coerce.number().int().min(1).max(168).default(24), maxUses: z.coerce.number().int().min(1).max(100).default(1) }),
   z.object({ action: z.literal("revokeEnrollmentToken"), tokenId: id }),
-  z.object({ action: z.literal("createTechnicianInvite"), email: z.string().email().max(160), name: z.string().min(2).max(100), roleKey: z.enum(["technician", "auditor"]).default("technician"), allOrganizations: z.boolean().default(false), organizationIds: z.array(id).max(100).default([]), expiresInHours: z.coerce.number().int().min(1).max(168).default(48) }),
+  z.object({ action: z.literal("createTechnicianInvite"), email: z.string().email().max(160), name: z.string().min(2).max(100), roleKey: z.enum(["admin", "technician", "auditor"]).default("technician"), allOrganizations: z.boolean().default(false), organizationIds: z.array(id).max(100).default([]), expiresInHours: z.coerce.number().int().min(1).max(168).default(48) }),
   z.object({ action: z.literal("revokeTechnicianInvite"), inviteId: id }),
-  z.object({ action: z.literal("updateTechnician"), technicianId: id, email: z.string().trim().email().max(160), name: z.string().trim().min(2).max(100), roleKey: z.enum(["technician", "auditor"]), active: z.boolean(), allOrganizations: z.boolean(), organizationIds: z.array(id).max(100).default([]) }),
+  z.object({ action: z.literal("updateTechnician"), technicianId: id, email: z.string().trim().email().max(160), name: z.string().trim().min(2).max(100), roleKey: z.enum(["admin", "technician", "auditor"]), active: z.boolean(), allOrganizations: z.boolean(), organizationIds: z.array(id).max(100).default([]) }),
   z.object({ action: z.literal("deleteTechnician"), technicianId: id }),
   z.object({ action: z.literal("runAutomation"), deviceId: id, automationId: id, confirmed: z.boolean().optional() }),
   z.object({ action: z.literal("updateAlert"), alertId: id, status: z.enum(["acknowledged", "suppressed", "resolved"]), note: z.string().max(500).optional() }),
@@ -110,8 +110,9 @@ export async function POST(request: Request) {
       if (existingUser) throw new Error("A user with this email address already exists.");
       const role = await db.role.findFirst({ where: { tenantId: user.tenantId, systemKey: input.roleKey } });
       if (!role) throw new Error("The selected role is not available.");
+      const allOrganizations = input.roleKey === "admin" || input.allOrganizations;
       const organizationIds = [...new Set(input.organizationIds)];
-      if (!input.allOrganizations && !organizationIds.length) throw new Error("Select at least one organization or grant access to all organizations.");
+      if (!allOrganizations && !organizationIds.length) throw new Error("Select at least one organization or grant access to all organizations.");
       if (organizationIds.length) {
         const matchingOrganizations = await db.organization.count({ where: { tenantId: user.tenantId, id: { in: organizationIds } } });
         if (matchingOrganizations !== organizationIds.length) throw new AuthorizationError("One or more selected organizations are outside this tenant.");
@@ -120,16 +121,16 @@ export async function POST(request: Request) {
       const expiresAt = new Date(Date.now() + input.expiresInHours * 3_600_000);
       const invite = await db.$transaction(async (tx) => {
         await tx.technicianInvite.updateMany({ where: { tenantId: user.tenantId, email, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
-        return tx.technicianInvite.create({ data: { tenantId: user.tenantId, roleId: role.id, createdById: user.id, email, name: input.name.trim(), tokenHash: hashTechnicianInviteToken(plaintext), tokenPrefix: plaintext.slice(0, 20), allOrganizations: input.allOrganizations, expiresAt, organizationScopes: input.allOrganizations ? undefined : { create: organizationIds.map((organizationId) => ({ organizationId })) } } });
+        return tx.technicianInvite.create({ data: { tenantId: user.tenantId, roleId: role.id, createdById: user.id, email, name: input.name.trim(), tokenHash: hashTechnicianInviteToken(plaintext), tokenPrefix: plaintext.slice(0, 20), allOrganizations, expiresAt, organizationScopes: allOrganizations ? undefined : { create: organizationIds.map((organizationId) => ({ organizationId })) } } });
       });
-      await audit(user, request, "technician_invite.created", "TechnicianInvite", invite.id, null, null, { email, role: role.systemKey, allOrganizations: invite.allOrganizations, organizationIds, expiresAt });
+      await audit(user, request, "technician_invite.created", "TechnicianInvite", invite.id, null, null, { email, role: role.systemKey, allOrganizations: invite.allOrganizations, organizationIds: allOrganizations ? [] : organizationIds, expiresAt });
       const invitationUrl = new URL(`/invite/${plaintext}`, process.env.APP_URL || "http://127.0.0.1:3000").toString();
       return NextResponse.json({ ok: true, inviteId: invite.id, invitationUrl, expiresAt });
     }
     if (input.action === "revokeTechnicianInvite") {
       assertPermission(user, "tenant.manage");
       const invite = await db.technicianInvite.findFirst({ where: { id: input.inviteId, tenantId: user.tenantId } });
-      if (!invite) throw new Error("Technician invitation was not found.");
+      if (!invite) throw new Error("Operator invitation was not found.");
       if (invite.acceptedAt) throw new Error("An accepted invitation cannot be revoked. Disable the user account instead.");
       if (!invite.revokedAt) await db.technicianInvite.update({ where: { id: invite.id }, data: { revokedAt: new Date() } });
       await audit(user, request, "technician_invite.revoked", "TechnicianInvite", invite.id, null, { revokedAt: invite.revokedAt }, { revokedAt: new Date() });
@@ -138,41 +139,44 @@ export async function POST(request: Request) {
     if (input.action === "updateTechnician") {
       assertPermission(user, "tenant.manage");
       const technician = await db.user.findFirst({ where: { id: input.technicianId, tenantId: user.tenantId, deletedAt: null }, include: { role: true, scopes: true } });
-      if (!technician) throw new Error("Technician account was not found.");
-      if (technician.id === user.id || technician.role.systemKey === "admin") throw new AuthorizationError("Admin accounts cannot be edited from technician management.");
-      if (!["technician", "auditor"].includes(technician.role.systemKey)) throw new AuthorizationError("Only technician and auditor accounts can be edited here.");
+      if (!technician) throw new Error("Operator account was not found.");
+      if (technician.id === user.id) throw new AuthorizationError("You cannot edit your own account from operator management.");
+      if (technician.username.toLowerCase() === (process.env.BOOTSTRAP_ADMIN_USERNAME || "root").toLowerCase()) throw new AuthorizationError("The bootstrap root account is protected.");
+      if (!["admin", "technician", "auditor"].includes(technician.role.systemKey)) throw new AuthorizationError("This account role cannot be edited here.");
       const role = await db.role.findFirst({ where: { tenantId: user.tenantId, systemKey: input.roleKey } });
       if (!role) throw new Error("The selected role is not available.");
+      const allOrganizations = input.roleKey === "admin" || input.allOrganizations;
       const email = input.email.toLowerCase();
       const duplicate = await db.user.findFirst({ where: { tenantId: user.tenantId, email, deletedAt: null, id: { not: technician.id } } });
       if (duplicate) throw new Error("A user with this email address already exists.");
       const organizationIds = [...new Set(input.organizationIds)];
-      if (!input.allOrganizations && !organizationIds.length) throw new Error("Select at least one organization or grant access to all organizations.");
+      if (!allOrganizations && !organizationIds.length) throw new Error("Select at least one organization or grant access to all organizations.");
       if (organizationIds.length) {
         const matchingOrganizations = await db.organization.count({ where: { tenantId: user.tenantId, id: { in: organizationIds } } });
         if (matchingOrganizations !== organizationIds.length) throw new AuthorizationError("One or more selected organizations are outside this tenant.");
       }
       const before = { name: technician.name, email: technician.email, role: technician.role.systemKey, active: technician.active, allOrganizations: technician.allOrganizations, organizationIds: technician.scopes.map((scope) => scope.organizationId) };
       await db.$transaction(async (tx) => {
-        await tx.user.update({ where: { id: technician.id }, data: { name: input.name, email, roleId: role.id, active: input.active, allOrganizations: input.allOrganizations } });
+        await tx.user.update({ where: { id: technician.id }, data: { name: input.name, email, roleId: role.id, active: input.active, allOrganizations } });
         await tx.userOrganizationScope.deleteMany({ where: { userId: technician.id } });
-        if (!input.allOrganizations && organizationIds.length) await tx.userOrganizationScope.createMany({ data: organizationIds.map((organizationId) => ({ userId: technician.id, organizationId })) });
+        if (!allOrganizations && organizationIds.length) await tx.userOrganizationScope.createMany({ data: organizationIds.map((organizationId) => ({ userId: technician.id, organizationId })) });
         if (!input.active) await tx.session.deleteMany({ where: { userId: technician.id } });
       });
-      await audit(user, request, "technician.updated", "User", technician.id, null, before, { name: input.name, email, role: role.systemKey, active: input.active, allOrganizations: input.allOrganizations, organizationIds: input.allOrganizations ? [] : organizationIds });
+      await audit(user, request, "technician.updated", "User", technician.id, null, before, { name: input.name, email, role: role.systemKey, active: input.active, allOrganizations, organizationIds: allOrganizations ? [] : organizationIds });
       return NextResponse.json({ ok: true });
     }
     if (input.action === "deleteTechnician") {
       assertPermission(user, "tenant.manage");
       const technician = await db.user.findFirst({ where: { id: input.technicianId, tenantId: user.tenantId, deletedAt: null }, include: { role: true } });
-      if (!technician) throw new Error("Technician account was not found.");
-      if (technician.id === user.id || technician.role.systemKey === "admin") throw new AuthorizationError("Admin accounts cannot be deleted from technician management.");
-      if (!["technician", "auditor"].includes(technician.role.systemKey)) throw new AuthorizationError("Only technician and auditor accounts can be deleted here.");
+      if (!technician) throw new Error("Operator account was not found.");
+      if (technician.id === user.id) throw new AuthorizationError("You cannot delete your own account from operator management.");
+      if (technician.username.toLowerCase() === (process.env.BOOTSTRAP_ADMIN_USERNAME || "root").toLowerCase()) throw new AuthorizationError("The bootstrap root account is protected.");
+      if (!["admin", "technician", "auditor"].includes(technician.role.systemKey)) throw new AuthorizationError("This account role cannot be deleted here.");
       const deletedAt = new Date();
       await db.$transaction(async (tx) => {
         await tx.session.deleteMany({ where: { userId: technician.id } });
         await tx.userOrganizationScope.deleteMany({ where: { userId: technician.id } });
-        await tx.user.update({ where: { id: technician.id }, data: { active: false, allOrganizations: false, deletedAt, name: "Deleted technician", email: `deleted+${technician.id}@local.invalid`, username: `deleted-${technician.id}` } });
+        await tx.user.update({ where: { id: technician.id }, data: { active: false, allOrganizations: false, deletedAt, name: "Deleted operator", email: `deleted+${technician.id}@local.invalid`, username: `deleted-${technician.id}` } });
       });
       await audit(user, request, "technician.deleted", "User", technician.id, null, { name: technician.name, email: technician.email, role: technician.role.systemKey, active: technician.active }, { deletedAt, retainedForAudit: true });
       return NextResponse.json({ ok: true });
