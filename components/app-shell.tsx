@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, Bell, Bot, Building2, ChevronDown, CircleUserRound, FileBarChart, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Search, ShieldCheck, Sun, TicketCheck, Wrench, X } from "lucide-react";
+import { Activity, Bell, Bot, Building2, CircleUserRound, FileBarChart, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Search, ShieldCheck, Sun, TicketCheck, Wrench, X } from "lucide-react";
 import type { SessionUser } from "@/lib/rbac";
 
 const navItems = [
@@ -38,7 +38,6 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
     <div className="app-shell">
       <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
         <button className="icon-button sidebar-close sidebar-close-floating" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={17} /></button>
-        <button className="tenant-switch" type="button"><span className="tenant-avatar">OP</span><span><small>Management scope</small><strong>OpsPilot Live</strong></span><ChevronDown size={13} /></button>
         <nav aria-label="Primary navigation">
           <span className="nav-label">Operations</span>
           {navItems.slice(0, 8).map(([label, href, Icon]) => <Link key={href} href={href} className={pathname === href || (href === "/devices" && pathname.startsWith("/devices/")) ? "active" : ""} onClick={() => setMobileOpen(false)}><Icon size={17} /><span>{label}</span></Link>)}

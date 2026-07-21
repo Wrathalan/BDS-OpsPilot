@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Activity, LockKeyhole, Radar, ShieldCheck } from "lucide-react";
+import { Activity, Radar } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
@@ -20,7 +20,6 @@ export default async function LoginPage() {
               <div><dt>Authentication</dt><dd>Local control plane</dd></div>
               <div><dt>Access model</dt><dd>Role and organization scoped</dd></div>
             </dl>
-            <div className="login-security-note"><ShieldCheck size={16} /><span>Endpoint actions are restricted to approved tasks and recorded in the audit log.</span></div>
           </aside>
           <section className="login-panel">
             <div className="login-card">
@@ -28,7 +27,6 @@ export default async function LoginPage() {
               <h1>Sign in</h1>
               <p>Use the bootstrap administrator or an invited operator account.</p>
               <LoginForm />
-              <div className="bootstrap-note"><LockKeyhole size={14} /><span>Credentials are processed by the local control plane and are not embedded in the client.</span></div>
             </div>
           </section>
         </div>
