@@ -51,6 +51,6 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: "Use a valid username and a 12+ character password containing upper- and lowercase letters, a number, and a symbol." }, { status: 400 });
     if (error instanceof Error && error.message === "Invitation unavailable") return NextResponse.json({ error: "This invitation is invalid, expired, revoked, or already used." }, { status: 410 });
-    return NextResponse.json({ error: "The technician account could not be created." }, { status: 400 });
+    return NextResponse.json({ error: "The operator account could not be created." }, { status: 400 });
   }
 }
